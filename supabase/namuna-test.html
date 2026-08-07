@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ekotizim — test</title>
+<style>
+  :root { --leaf:#2e7d4f; --leaf-deep:#1e5637; --paper:#f6f8f3; --ink:#1c2a21; --line:#cddcc9; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper); color: var(--ink); line-height: 1.55;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 21px; margin: 0 0 6px; }
+  .lead { color: #51655a; font-size: 14px; margin: 0 0 20px; }
+  .q {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px; margin-bottom: 12px;
+  }
+  .q h3 { font-size: 15.5px; margin: 0 0 12px; }
+  label {
+    display: flex; align-items: flex-start; gap: 9px;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14.5px;
+  }
+  label:hover { background: #f2f7f0; }
+  input[type=radio] { margin-top: 3px; flex-shrink: 0; }
+  button {
+    background: var(--leaf); color: #fff; border: 0; border-radius: 999px;
+    padding: 12px 26px; font-size: 15px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { background: var(--leaf-deep); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  #result {
+    display: none; background: #fff; border: 2px solid var(--leaf);
+    border-radius: 12px; padding: 18px; margin-top: 16px; text-align: center;
+  }
+  #result .score { font-size: 32px; font-weight: 800; color: var(--leaf-deep); }
+  .review { font-size: 13.5px; margin-top: 12px; text-align: left; }
+  .review div { padding: 4px 0; }
+  .ok { color: var(--leaf); }
+  .bad { color: #c2453a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ekotizim — nazorat testi</h1>
+  <p class="lead">Har bir savolga bitta to'g'ri javobni tanlang, so'ng "Tekshirish" tugmasini bosing.</p>
+
+  <form id="quiz"></form>
+  <button type="button" id="submit">Tekshirish</button>
+
+  <div id="result">
+    <div class="score" id="score"></div>
+    <div id="msg"></div>
+    <div class="review" id="review"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   O'QITUVCHI UCHUN: faqat shu QUESTIONS massivini o'zgartiring.
+   answer — to'g'ri javobning tartib raqami (0 dan boshlanadi).
+   ============================================================ */
+const QUESTIONS = [
+  {
+    q: "Ekotizim nima?",
+    options: [
+      "Faqat o'simliklar to'plami",
+      "Tirik organizmlar va ular yashaydigan muhitning birligi",
+      "Yer yuzidagi barcha hayvonlar",
+      "Iqlim o'zgarishi jarayoni"
+    ],
+    answer: 1
+  },
+  {
+    q: "Oziq zanjirida produtsentlar kimlar?",
+    options: [
+      "Yirtqich hayvonlar",
+      "Zamburug'lar va bakteriyalar",
+      "Fotosintez qiluvchi yashil o'simliklar",
+      "O'txo'r hayvonlar"
+    ],
+    answer: 2
+  },
+  {
+    q: "Quyidagilardan qaysi biri biologik xilma-xillikni saqlash chorasi?",
+    options: [
+      "O'rmonlarni kesish",
+      "Qo'riqxonalar tashkil etish",
+      "Botqoqlarni quritish",
+      "Bir turli ekin ekish"
+    ],
+    answer: 1
+  },
+  {
+    q: "Redutsentlarning ekotizimdagi vazifasi nima?",
+    options: [
+      "Quyosh energiyasini yutish",
+      "O'lik organik moddalarni parchalab, tuproqqa qaytarish",
+      "Kislorod ishlab chiqarish",
+      "Suvni bug'lantirish"
+    ],
+    answer: 1
+  },
+  {
+    q: "Yashil o'quv dasturining asosiy maqsadi nima?",
+    options: [
+      "Faqat biologiya fanini chuqur o'rgatish",
+      "O'quvchilarda tabiatni asrash ko'nikmasi va mas'uliyatini shakllantirish",
+      "Sport mahoratini oshirish",
+      "Chet tilini o'rgatish"
+    ],
+    answer: 1
+  }
+];
+
+const form = document.getElementById("quiz");
+QUESTIONS.forEach((item, i) => {
+  const box = document.createElement("div");
+  box.className = "q";
+  const title = document.createElement("h3");
+  title.textContent = (i + 1) + ". " + item.q;
+  box.appendChild(title);
+  item.options.forEach((opt, j) => {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "q" + i;
+    input.value = j;
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(opt));
+    box.appendChild(label);
+  });
+  form.appendChild(box);
+});
+
+document.getElementById("submit").addEventListener("click", function () {
+  let score = 0;
+  const review = [];
+
+  QUESTIONS.forEach((item, i) => {
+    const picked = form.querySelector('input[name="q' + i + '"]:checked');
+    const val = picked ? Number(picked.value) : -1;
+    const correct = val === item.answer;
+    if (correct) score++;
+    review.push(
+      '<div class="' + (correct ? "ok" : "bad") + '">' +
+      (i + 1) + ". " + (correct ? "To'g'ri" : "Noto'g'ri — to'g'ri javob: " + item.options[item.answer]) +
+      "</div>"
+    );
+  });
+
+  const total = QUESTIONS.length;
+  const percent = Math.round((score / total) * 100);
+
+  document.getElementById("score").textContent = score + " / " + total + " (" + percent + "%)";
+  document.getElementById("msg").textContent =
+    percent >= 80 ? "Ajoyib natija!" :
+    percent >= 55 ? "Yaxshi, lekin mavzuni yana takrorlang." :
+    "Mavzuni qaytadan o'qib, yana urinib ko'ring.";
+  document.getElementById("review").innerHTML = review.join("");
+  document.getElementById("result").style.display = "block";
+  this.disabled = true;
+
+  /* ============================================================
+     MUHIM: natijani GreenEdu platformasiga yuborish.
+     Bu qatorni o'chirmang — aks holda natija admin statistikasiga
+     tushmaydi va dars avtomatik tugatilmaydi.
+     ============================================================ */
+  if (window.parent !== window) {
+    window.parent.postMessage(
+      { type: "greenedu:test-result", score: score, total: total },
+      "*"
+    );
+  }
+});
+</script>
+</body>
+</html>
