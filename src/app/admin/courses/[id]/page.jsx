@@ -400,7 +400,7 @@ export default function AdminCourseLessonsPage({ params }) {
           </div>
 
           <div className="field">
-            <label>3D model fayli (.glb / .gltf) — o'zingiz yaratgan VR/AR kontent</label>
+            <label>3D model fayli (.glb) — o'zingiz yaratgan VR/AR kontent</label>
             <p className="file-hint">120 MB gacha. Blender'dan "glTF Binary (.glb)" formatida eksport qiling.</p>
             {form.modelUrl ? (
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -424,30 +424,7 @@ export default function AdminCourseLessonsPage({ params }) {
             )}
           </div>
 
-          <div className="field">
-            <label>Test fayli (.html) — natijalar avtomatik qayd etiladi</label>
-            <p className="file-hint">5 MB gacha. Namuna: supabase/namuna-test.html (savollarni almashtiring).</p>
-            {form.testUrl ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span className="chip chip-green">Test yuklandi</span>
-                <a href={form.testUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
-                  Ochib ko'rish
-                </a>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setF("testUrl", "")}>
-                  Olib tashlash
-                </button>
-              </div>
-            ) : (
-              <label className="btn btn-ghost btn-sm" style={{ cursor: "pointer", alignSelf: "flex-start" }}>
-                {uploading === "test" ? "Yuklanmoqda, kuting..." : "HTML fayl tanlash"}
-                <input
-                  type="file" accept=".html,.htm" hidden
-                  onChange={(e) => uploadFile(e, "test")}
-                  disabled={uploading !== null}
-                />
-              </label>
-            )}
-          </div>
+          
 
           <div className="field" style={{ maxWidth: 160 }}>
             <label htmlFor="ls-order">Tartib raqami</label>
