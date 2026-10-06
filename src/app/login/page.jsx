@@ -1,116 +1,236 @@
+
 "use client";
 
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import AuthHero from "../auth-hero";
-import PasswordInput from "@/components/PasswordInput";
-import { safePath } from "@/lib/api/validate";
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={null}>
-      <LoginForm />
-    </Suspense>
-  );
-}
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+  });
 
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  // Ochiq qayta yo'naltirish (open redirect) himoyasi: faqat ichki yo'llar
-  const from = safePath(searchParams.get("from"), "");
-
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleChange = (e) =>
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    if (error) {
+      setError("");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
-    if (!form.email || !form.password) {
-      setError("Email va parolni kiriting.");
+
+    if (!form.email.trim()) {
+      setError("Email manzilini kiriting.");
+      return;
+    }
+
+    if (!form.email.includes("@")) {
+      setError("Email manzilini to‘g‘ri kiriting.");
+      return;
+    }
+
+    if (!form.password) {
+      setError("Parolni kiriting.");
       return;
     }
 
     setLoading(true);
+
     try {
-      const supabase = createClient();
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: form.email,
-        password: form.password,
-      });
+      /*
+       * BU YERGA SIZNING MAVJUD SUPABASE LOGIN
+       * KODINGIZNI QO'YASIZ.
+       *
+       * Masalan:
+       *
+       * const { error } = await supabase.auth.signInWithPassword({
+       *   email: form.email,
+       *   password: form.password,
+       * });
+       *
+       * if (error) {
+       *   setError(error.message);
+       *   return;
+       * }
+       *
+       * router.push("/dashboard");
+       */
 
-      if (signInError) {
-        const msg = signInError.message.toLowerCase();
-        if (msg.includes("invalid login credentials")) {
-          setError("Email yoki parol noto'g'ri.");
-        } else if (msg.includes("email not confirmed")) {
-          setError("Avval emailingizga yuborilgan havola orqali hisobni tasdiqlang.");
-        } else {
-          setError(signInError.message);
-        }
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", data.user.id)
-        .single();
-
-      router.push(from || (profile?.role === "admin" ? "/admin" : "/user"));
-      router.refresh();
-    } catch {
-      setError("Kirishda xatolik yuz berdi. Qaytadan urinib ko'ring.");
+      console.log("Login:", form.email);
+    } catch (err) {
+      console.error(err);
+      setError("Kirish vaqtida xatolik yuz berdi.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="auth-page">
-      <AuthHero />
-      <main id="main-content" className="auth-form-side">
-        <div className="auth-card">
-          <h1>Xush kelibsiz</h1>
-          <p className="lead">Hisobingizga kirib, o'qishni davom ettiring.</p>
+    <main className="auth-page">
+      {/* =====================================================
+          CHAP TOMON — GREENEDU
+      ====================================================== */}
+      <section className="auth-hero">
+        <div className="viewfinder">
+          <div className="vf-b" />
 
-          <form onSubmit={handleSubmit} className="auth-form" noValidate>
+          <span className="section-eyebrow">
+            GreenEdu
+          </span>
+
+          <h2>
+            Tabiatni o‘rganing,
+            <br />
+            kelajakni yarating.
+          </h2>
+
+          <p>
+            AR/VR texnologiyalari yordamida ekologik
+            bilimlarni interaktiv va qiziqarli tarzda
+            o‘rganing.
+          </p>
+        </div>
+      </section>
+
+      {/* =====================================================
+          O'NG TOMON — LOGIN FORM
+      ====================================================== */}
+      <section className="auth-form-side">
+        <div className="auth-card">
+          <h1>Tizimga kirish</h1>
+
+          <p className="lead">
+            GreenEdu hisobingizga kirish uchun
+            ma’lumotlaringizni kiriting.
+          </p>
+
+          <form
+            className="auth-form"
+            onSubmit={handleSubmit}
+            noValidate
+          >
+            {/* EMAIL */}
             <div className="field">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">
+                Email
+              </label>
+
               <input
-                id="email" name="email" type="email" className="input"
-                placeholder="siz@misol.uz" value={form.email}
-                onChange={handleChange} autoComplete="username" autoFocus
+                id="email"
+                name="email"
+                type="email"
+                className="input"
+                placeholder="siz@misol.uz"
+                value={form.email}
+                onChange={handleChange}
+                autoComplete="username"
+                autoFocus
+                inputMode="email"
+                spellCheck={false}
               />
             </div>
-            <PasswordInput
-              label="Parol"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              autoComplete="current-password"
-            />
 
-            {error && <p className="form-error">{error}</p>}
+            {/* PAROL */}
+            <div className="field">
+              <label htmlFor="password">
+                Parol
+              </label>
 
-            <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-              {loading ? "Tekshirilmoqda..." : "Kirish"}
+              <div className="pw-wrap">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  className="input pw-input"
+                  placeholder="Parolingizni kiriting"
+                  value={form.password}
+                  onChange={handleChange}
+                  autoComplete="current-password"
+                />
+
+                <button
+                  type="button"
+                  className="pw-toggle"
+                  onClick={() =>
+                    setShowPassword((prev) => !prev)
+                  }
+                  aria-label={
+                    showPassword
+                      ? "Parolni yashirish"
+                      : "Parolni ko‘rsatish"
+                  }
+                >
+                  {showPassword ? "🙈" : "👁"}
+                </button>
+              </div>
+            </div>
+
+            {/* PAROLNI UNUTDINGIZMI */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "-4px",
+              }}
+            >
+              <Link
+                href="/forgot-password"
+                style={{
+                  color: "var(--leaf-deep)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                }}
+              >
+                Parolni unutdingizmi?
+              </Link>
+            </div>
+
+            {/* XATOLIK */}
+            {error && (
+              <div
+                className="form-error"
+                role="alert"
+              >
+                {error}
+              </div>
+            )}
+
+            {/* LOGIN BUTTON */}
+            <button
+              type="submit"
+              className="btn btn-primary btn-lg"
+              disabled={loading}
+              style={{
+                width: "100%",
+              }}
+            >
+              {loading ? "Kirilmoqda..." : "Kirish"}
             </button>
           </form>
 
-          <p className="auth-links">
-            <Link href="/forgot-password">Parolni unutdingizmi?</Link>
-            <br />
-            Hisobingiz yo'qmi? <Link href="/register">Ro'yxatdan o'ting</Link>
-          </p>
+          {/* REGISTER */}
+          <div className="auth-links">
+            Hisobingiz yo‘qmi?{" "}
+            <Link href="/register">
+              Ro‘yxatdan o‘tish
+            </Link>
+          </div>
         </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }

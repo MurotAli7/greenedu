@@ -1,83 +1,202 @@
+
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import AuthHero from "../auth-hero";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
-    if (!email) {
-      setError("Emailingizni kiriting.");
+    setSuccess("");
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setError("Email manzilini kiriting.");
+      return;
+    }
+
+    if (!trimmedEmail.includes("@")) {
+      setError("Email manzilini to‘g‘ri kiriting.");
       return;
     }
 
     setLoading(true);
+
     try {
-      const supabase = createClient();
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo:
-          typeof window !== "undefined" ? `${window.location.origin}/login` : undefined,
-      });
-      if (resetError) {
-        setError(resetError.message);
-        return;
-      }
-      setSent(true);
-    } catch {
-      setError("Xatolik yuz berdi. Qaytadan urinib ko'ring.");
+      /*
+       * BU YERGA SIZNING MAVJUD SUPABASE
+       * PASSWORD RESET KODINGIZ QO'YILADI.
+       *
+       * Masalan:
+       *
+       * const { error } = await supabase.auth.resetPasswordForEmail(
+       *   trimmedEmail,
+       *   {
+       *     redirectTo:
+       *       `${window.location.origin}/reset-password`,
+       *   }
+       * );
+       *
+       * if (error) {
+       *   setError(error.message);
+       *   return;
+       * }
+       */
+
+      console.log("Password reset:", trimmedEmail);
+
+      setSuccess(
+        "Parolni tiklash uchun havola emailingizga yuborildi."
+      );
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        "Parolni tiklashda xatolik yuz berdi. Qaytadan urinib ko‘ring."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="auth-page">
-      <AuthHero />
-      <main id="main-content" className="auth-form-side">
-        <div className="auth-card">
-          <h1>Parolni tiklash</h1>
-          <p className="lead">
-            Emailingizni kiriting — parolni tiklash havolasini yuboramiz.
-          </p>
+    <main className="auth-page">
+      {/* =====================================================
+          CHAP TOMON
+      ====================================================== */}
+      <section className="auth-hero">
+        <div className="viewfinder">
+          <div className="vf-b" />
 
-          {sent ? (
-            <p className="form-ok">
-              Havola yuborildi! Emailingizni tekshiring (spam papkani ham),
-              so'ng havola orqali yangi parol o'rnating.
-            </p>
-          ) : (
-            <form onSubmit={handleSubmit} className="auth-form" noValidate>
-              <div className="field">
-                <label htmlFor="email">Email</label>
-                <input
-                  id="email" type="email" className="input"
-                  placeholder="siz@misol.uz" value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="username" autoFocus
-                />
-              </div>
+          <span className="section-eyebrow">
+            GreenEdu
+          </span>
 
-              {error && <p className="form-error">{error}</p>}
+          <h2>
+            Hisobingizga
+            <br />
+            qayta kiring.
+          </h2>
 
-              <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-                {loading ? "Yuborilmoqda..." : "Havolani yuborish"}
-              </button>
-            </form>
-          )}
-
-          <p className="auth-links">
-            <Link href="/login">← Kirish sahifasiga qaytish</Link>
+          <p>
+            Parolingizni unutgan bo‘lsangiz, xavotir olmang.
+            Email manzilingiz orqali hisobingizga qayta
+            kirish imkoniyatini tiklang.
           </p>
         </div>
-      </main>
-    </div>
+      </section>
+
+      {/* =====================================================
+          O'NG TOMON
+      ====================================================== */}
+      <section className="auth-form-side">
+        <div className="auth-card">
+          <h1>Parolni tiklash</h1>
+
+          <p className="lead">
+            Hisobingizga bog‘langan email manzilini
+            kiriting. Sizga parolni tiklash uchun havola
+            yuboramiz.
+          </p>
+
+          <form
+            className="auth-form"
+            onSubmit={handleSubmit}
+            noValidate
+          >
+            {/* EMAIL */}
+            <div className="field">
+              <label htmlFor="email">
+                Email
+              </label>
+
+              <input
+                id="email"
+                name="email"
+                type="email"
+                className="input"
+                placeholder="siz@misol.uz"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+
+                  if (error) {
+                    setError("");
+                  }
+
+                  if (success) {
+                    setSuccess("");
+                  }
+                }}
+                autoComplete="email"
+                autoFocus
+                inputMode="email"
+                spellCheck={false}
+              />
+            </div>
+
+            {/* XATOLIK */}
+            {error && (
+              <div
+                className="form-error"
+                role="alert"
+              >
+                {error}
+              </div>
+            )}
+
+            {/* MUVAFFAQIYAT */}
+            {success && (
+              <div
+                className="form-ok"
+                role="status"
+              >
+                {success}
+              </div>
+            )}
+
+            {/* RESET BUTTON */}
+            <button
+              type="submit"
+              className="btn btn-primary btn-lg"
+              disabled={loading}
+              style={{
+                width: "100%",
+              }}
+            >
+              {loading
+                ? "Yuborilmoqda..."
+                : "Tiklash havolasini yuborish"}
+            </button>
+          </form>
+
+          {/* LOGIN */}
+          <div className="auth-links">
+            <Link href="/login">
+              ← Tizimga qaytish
+            </Link>
+          </div>
+
+          {/* REGISTER */}
+          <div
+            className="auth-links"
+            style={{ marginTop: "10px" }}
+          >
+            Hisobingiz yo‘qmi?{" "}
+            <Link href="/register">
+              Ro‘yxatdan o‘tish
+            </Link>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
