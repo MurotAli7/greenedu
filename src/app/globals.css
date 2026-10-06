@@ -1743,29 +1743,50 @@ model-viewer {
 }
 
 .pw-input {
-  padding-right: 46px;
+  padding-right: 50px;
 }
 
 .pw-toggle {
   position: absolute;
-  right: 6px;
+  right: 5px;
   top: 50%;
   transform: translateY(-50%);
-  width: 34px;
-  height: 34px;
+
+  width: 38px;
+  height: 38px;
+
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
+  padding: 0;
   border: 0;
   background: transparent;
+
   color: var(--ink-faint);
   border-radius: 8px;
+
   cursor: pointer;
+
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .pw-toggle:hover {
   color: var(--ink);
   background: var(--moss);
+}
+
+.pw-toggle:active {
+  transform: translateY(-50%) scale(0.94);
+}
+
+.pw-toggle svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
 }
 
 /* ---------- Dars tartibini almashtirish tugmalari ---------- */
