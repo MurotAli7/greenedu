@@ -1,24 +1,28 @@
-
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+
 import Modal from "@/components/Modal";
+
 import {
   PlusIcon,
   EditIcon,
   TrashIcon,
   BookIcon,
 } from "@/components/Icons";
+
 import {
   SkeletonPageHead,
   SkeletonTable,
 } from "@/components/Skeleton";
+
 import {
   STATUS_LABELS,
   STATUS_CHIPS,
   CONTENT_TYPE_LABELS,
 } from "@/lib/constants";
+
 import { apiFetch } from "@/lib/api/client";
 import { useCachedApi } from "@/lib/api/useCached";
 
@@ -32,8 +36,18 @@ const EMPTY_FORM = {
   recommended: false,
 };
 
+/**
+ * Kurs nomini taqqoslash uchun normallashtiramiz.
+ *
+ * Masalan:
+ * "  Python   Dasturlash "
+ * "python dasturlash"
+ *
+ * ikkalasi ham:
+ * "python dasturlash"
+ */
 function normalizeTitle(value = "") {
-  return value
+  return String(value)
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
@@ -42,7 +56,9 @@ function normalizeTitle(value = "") {
 export default function CourseManager({ mode = "course" }) {
   const isArvr = mode === "ar-vr";
 
-  const createLabel = isArvr ? "AR/VR kontent" : "Kurs";
+  const createLabel = isArvr
+    ? "AR/VR kontent"
+    : "Kurs";
 
   const apiUrl = `/api/admin/courses?type=${mode}`;
 
@@ -65,11 +81,16 @@ export default function CourseManager({ mode = "course" }) {
     item: null,
   });
 
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState({
+    ...EMPTY_FORM,
+  });
 
   const [busy, setBusy] = useState(false);
   const [modalError, setModalError] = useState("");
 
+  /**
+   * Ma'lumotlarni qayta yuklash.
+   */
   const load = useCallback(async () => {
     await mutate();
   }, [mutate]);
@@ -78,6 +99,9 @@ export default function CourseManager({ mode = "course" }) {
     load();
   }, [load]);
 
+  /**
+   * Modalni yopish.
+   */
   const closeModal = () => {
     if (busy) return;
 
@@ -87,10 +111,16 @@ export default function CourseManager({ mode = "course" }) {
       item: null,
     });
 
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+    });
+
     setModalError("");
   };
 
+  /**
+   * Yangi kurs yaratish.
+   */
   const openCreate = () => {
     setForm({
       ...EMPTY_FORM,
@@ -106,18 +136,31 @@ export default function CourseManager({ mode = "course" }) {
     setModalError("");
   };
 
+  /**
+   * Kursni tahrirlash.
+   */
   const openEdit = (item) => {
     setForm({
       title: item.title || "",
       description: item.description || "",
       category: item.category || "",
+
       contentType:
         item.content_type ||
         item.contentType ||
         (isArvr ? "ar" : "course"),
+
       status: item.status || "active",
-      embedUrl: item.embed_url || item.embedUrl || "",
-      recommended: Boolean(item.recommended),
+
+      embedUrl:
+        item.embed_url ||
+        item.embedUrl ||
+        "",
+
+      recommended: Boolean(
+        item.recommended ??
+        item.recommended_for_new_users
+      ),
     });
 
     setModal({
@@ -129,6 +172,9 @@ export default function CourseManager({ mode = "course" }) {
     setModalError("");
   };
 
+  /**
+   * Form qiymatini o'zgartirish.
+   */
   const handleChange = (field, value) => {
     setForm((prev) => ({
       ...prev,
@@ -140,49 +186,66 @@ export default function CourseManager({ mode = "course" }) {
     }
   };
 
+  /**
+   * Kursni yaratish / tahrirlash.
+   */
   const save = async () => {
-    /*
-     * Kurs nomini tozalaymiz:
-     * "  Web   Dasturlash  "
-     * =>
-     * "Web Dasturlash"
+    /**
+     * Kurs nomini tozalaymiz.
      */
-    const title = form.title.replace(/\s+/g, " ").trim();
+    const title = String(form.title || "")
+      .replace(/\s+/g, " ")
+      .trim();
 
+    /**
+     * Nom bo'sh bo'lmasligi kerak.
+     */
     if (!title) {
-      setModalError("Kurs nomi kiritilishi shart.");
+      setModalError(
+        "Kurs nomi kiritilishi shart."
+      );
       return;
     }
 
     const isEdit = modal.type === "edit";
 
-    /*
-     * Bir xil nomdagi kurslarni tekshirish.
+    /**
+     * Takroriy nomni tekshirish.
      *
-     * Masalan:
-     * Python
-     * python
-     * PYTHON
-     * Python
+     * Katta-kichik harf farq qilmaydi.
      *
-     * bularning barchasi bir xil hisoblanadi.
+     * "Python"
+     * "python"
+     * "PYTHON"
+     *
+     * bir xil hisoblanadi.
      */
-    const normalizedTitle = normalizeTitle(title);
+    const normalizedTitle =
+      normalizeTitle(title);
 
     const duplicate = items.find((item) => {
-      /*
-       * Tahrirlash vaqtida aynan o'z kursimizni
-       * duplicate deb hisoblamaymiz.
+      /**
+       * Tahrirlashda o'zimizni duplicate deb
+       * hisoblamaymiz.
        */
-      if (isEdit && item.id === modal.item?.id) {
+      if (
+        isEdit &&
+        item.id === modal.item?.id
+      ) {
         return false;
       }
 
-      const existingTitle = normalizeTitle(item.title || "");
+      const existingTitle =
+        normalizeTitle(item.title || "");
 
-      return existingTitle === normalizedTitle;
+      return (
+        existingTitle === normalizedTitle
+      );
     });
 
+    /**
+     * Duplicate topildi.
+     */
     if (duplicate) {
       setModalError(
         `"${duplicate.title}" nomli kurs allaqachon mavjud. Boshqa nom tanlang.`
@@ -194,27 +257,48 @@ export default function CourseManager({ mode = "course" }) {
     setModalError("");
 
     try {
+      /**
+       * Backendga yuboriladigan ma'lumot.
+       *
+       * Oddiy kursda UI faqat:
+       * - title
+       * - description
+       *
+       * ko'rsatadi.
+       *
+       * Lekin backend bilan moslik uchun qolgan
+       * qiymatlar ham saqlanadi.
+       */
       const body = {
         title,
-        description: form.description.trim(),
+        description: String(
+          form.description || ""
+        ).trim(),
 
-        /*
-         * Oddiy kursda bu qiymatlar backend uchun
-         * mavjud holatda saqlanadi.
-         *
-         * UI'da esa oddiy kurs uchun ko'rsatilmaydi.
-         */
-        category: form.category.trim(),
-        contentType: form.contentType,
-        status: form.status,
-        embedUrl: form.embedUrl.trim(),
-        recommended: Boolean(form.recommended),
+        category: String(
+          form.category || ""
+        ).trim(),
+
+        contentType:
+          form.contentType || "course",
+
+        status:
+          form.status || "active",
+
+        embedUrl: String(
+          form.embedUrl || ""
+        ).trim(),
+
+        recommended: Boolean(
+          form.recommended
+        ),
       };
 
-      let justCreated = null;
-
+      /**
+       * EDIT
+       */
       if (isEdit) {
-        const updated = await apiFetch(
+        await apiFetch(
           `/api/admin/courses/${modal.item.id}`,
           {
             method: "PATCH",
@@ -222,34 +306,53 @@ export default function CourseManager({ mode = "course" }) {
           }
         );
 
-        if (updated?.course) {
-          justCreated = updated.course;
-        }
-
         await mutate();
-      } else {
-        const created = await apiFetch("/api/admin/courses", {
+
+        closeModal();
+
+        return;
+      }
+
+      /**
+       * CREATE
+       */
+      const created = await apiFetch(
+        "/api/admin/courses",
+        {
           method: "POST",
           body: JSON.stringify(body),
-        });
+        }
+      );
 
-        justCreated = created?.course || created;
+      /**
+       * API turli formatlarda qaytarishi mumkin:
+       *
+       * { course: {...} }
+       *
+       * yoki
+       *
+       * {...}
+       */
+      const createdCourse =
+        created?.course || created;
 
-        await mutate();
-      }
+      await mutate();
 
       closeModal();
 
-      /*
-       * Yangi oddiy kurs yaratilgandan keyin
-       * foydalanuvchini shu kursning darslari sahifasiga
-       * o'tkazish uchun.
+      /**
+       * Yangi kurs yaratilgandan keyin
+       * dars qo'shish sahifasiga o'tamiz.
        */
-      if (!isEdit && justCreated?.id) {
-        window.location.href = `/admin/courses/${justCreated.id}`;
+      if (createdCourse?.id) {
+        window.location.href =
+          `/admin/courses/${createdCourse.id}`;
       }
     } catch (err) {
-      console.error(err);
+      console.error(
+        "Course save error:",
+        err
+      );
 
       setModalError(
         err?.message ||
@@ -260,29 +363,47 @@ export default function CourseManager({ mode = "course" }) {
     }
   };
 
+  /**
+   * Kursni o'chirish.
+   */
   const remove = async (item) => {
     const confirmed = window.confirm(
       `"${item.title}" kursini o‘chirishni xohlaysizmi?`
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
-      await apiFetch(`/api/admin/courses/${item.id}`, {
-        method: "DELETE",
-      });
+      setBusy(true);
+
+      await apiFetch(
+        `/api/admin/courses/${item.id}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       await mutate();
     } catch (err) {
-      console.error(err);
+      console.error(
+        "Course delete error:",
+        err
+      );
 
       window.alert(
         err?.message ||
           "Kursni o‘chirishda xatolik yuz berdi."
       );
+    } finally {
+      setBusy(false);
     }
   };
 
+  /**
+   * Darslar soni.
+   */
   const getLessonsCount = (item) => {
     return (
       item.lessons_count ??
@@ -292,6 +413,9 @@ export default function CourseManager({ mode = "course" }) {
     );
   };
 
+  /**
+   * O'quvchilar soni.
+   */
   const getStudentsCount = (item) => {
     return (
       item.students_count ??
@@ -301,6 +425,9 @@ export default function CourseManager({ mode = "course" }) {
     );
   };
 
+  /**
+   * Loading.
+   */
   if (loading && !data) {
     return (
       <div className="space-y-6">
@@ -316,7 +443,9 @@ export default function CourseManager({ mode = "course" }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isArvr ? "AR/VR kontent" : "Kurslar"}
+            {isArvr
+              ? "AR/VR kontent"
+              : "Kurslar"}
           </h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -339,7 +468,8 @@ export default function CourseManager({ mode = "course" }) {
       {/* ERROR */}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          {error?.message || "Ma’lumotlarni yuklashda xatolik yuz berdi."}
+          {error?.message ||
+            "Ma’lumotlarni yuklashda xatolik yuz berdi."}
         </div>
       )}
 
@@ -441,18 +571,22 @@ export default function CourseManager({ mode = "course" }) {
                     <td className="px-6 py-4">
                       {(() => {
                         const status =
-                          item.status || "active";
+                          item.status ||
+                          "active";
 
                         const chip =
-                          STATUS_CHIPS?.[status] ||
+                          STATUS_CHIPS?.[
+                            status
+                          ] ||
                           "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
 
                         return (
                           <span
                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${chip}`}
                           >
-                            {STATUS_LABELS?.[status] ||
-                              status}
+                            {STATUS_LABELS?.[
+                              status
+                            ] || status}
                           </span>
                         );
                       })()}
@@ -471,6 +605,7 @@ export default function CourseManager({ mode = "course" }) {
                     {/* ACTIONS */}
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
+                        {/* LESSONS */}
                         <Link
                           href={`/admin/courses/${item.id}`}
                           title="Darslarni boshqarish"
@@ -479,18 +614,24 @@ export default function CourseManager({ mode = "course" }) {
                           <BookIcon className="h-5 w-5" />
                         </Link>
 
+                        {/* EDIT */}
                         <button
                           type="button"
-                          onClick={() => openEdit(item)}
+                          onClick={() =>
+                            openEdit(item)
+                          }
                           title="Tahrirlash"
                           className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-400"
                         >
                           <EditIcon className="h-5 w-5" />
                         </button>
 
+                        {/* DELETE */}
                         <button
                           type="button"
-                          onClick={() => remove(item)}
+                          onClick={() =>
+                            remove(item)
+                          }
                           title="O‘chirish"
                           className="rounded-lg p-2 text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-950/30 dark:hover:text-red-400"
                         >
@@ -506,7 +647,7 @@ export default function CourseManager({ mode = "course" }) {
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* CREATE / EDIT MODAL */}
       <Modal
         open={modal.open}
         onClose={closeModal}
@@ -517,7 +658,7 @@ export default function CourseManager({ mode = "course" }) {
         }
       >
         <div className="space-y-5">
-          {/* MODAL ERROR */}
+          {/* ERROR */}
           {modalError && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
               {modalError}
@@ -534,12 +675,19 @@ export default function CourseManager({ mode = "course" }) {
               type="text"
               value={form.title}
               onChange={(e) =>
-                handleChange("title", e.target.value)
+                handleChange(
+                  "title",
+                  e.target.value
+                )
               }
               placeholder="Kurs nomini kiriting"
               disabled={busy}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
+
+            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+              Bir xil nomdagi kursni qayta yaratib bo‘lmaydi.
+            </p>
           </div>
 
           {/* DESCRIPTION */}
@@ -563,18 +711,7 @@ export default function CourseManager({ mode = "course" }) {
             />
           </div>
 
-          {/*
-           * ODDIY KURS UCHUN:
-           *
-           * Faqat:
-           * 1. Nomi
-           * 2. Tavsif
-           *
-           * ko‘rsatiladi.
-           *
-           * AR/VR rejimida esa eski qo‘shimcha
-           * maydonlar saqlanadi.
-           */}
+          {/* AR/VR ONLY */}
           {isArvr && (
             <>
               {/* CATEGORY */}
