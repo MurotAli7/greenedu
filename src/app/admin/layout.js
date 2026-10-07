@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api/client";
 import {
-  LeafIcon, DashboardIcon, UsersIcon, BookIcon, VrIcon, ChartIcon,
+  LeafIcon, DashboardIcon, UsersIcon, BookIcon, ChartIcon,
   LogoutIcon, MenuIcon, CloseIcon,
 } from "@/components/Icons";
 
