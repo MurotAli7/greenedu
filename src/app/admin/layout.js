@@ -14,7 +14,6 @@ const NAV = [
   { href: "/admin/dashboard", label: "Boshqaruv paneli", icon: DashboardIcon },
   { href: "/admin/users", label: "Foydalanuvchilar", icon: UsersIcon },
   { href: "/admin/courses", label: "Kurslar", icon: BookIcon },
-  { href: "/admin/ar-vr-content", label: "AR/VR kontent", icon: VrIcon },
   { href: "/admin/statistics", label: "Faollik statistikasi", icon: ChartIcon },
 ];
 
