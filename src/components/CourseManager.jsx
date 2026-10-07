@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 
 import Modal from "@/components/Modal";
@@ -26,6 +26,7 @@ import {
 import { apiFetch } from "@/lib/api/client";
 import { useCachedApi } from "@/lib/api/useCached";
 
+
 const EMPTY_FORM = {
   title: "",
   description: "",
@@ -36,91 +37,50 @@ const EMPTY_FORM = {
   recommended: false,
 };
 
-/**
- * Kurs nomini taqqoslash uchun normallashtiramiz.
- *
- * Masalan:
- * "  Python   Dasturlash "
- * "python dasturlash"
- *
- * ikkalasi ham:
- * "python dasturlash"
- */
-function normalizeTitle(value = "") {
-  return String(value)
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
 
+/**
+ * Kurslar / AR-VR kontent boshqaruvi.
+ *
+ * mode:
+ *   "course"  - oddiy kurslar
+ *   "ar-vr"   - AR/VR kontentlar
+ */
 export default function CourseManager({ mode = "course" }) {
   const isArvr = mode === "ar-vr";
-
-  const createLabel = isArvr
-    ? "AR/VR kontent"
-    : "Kurs";
-
-  const apiUrl = `/api/admin/courses?type=${mode}`;
 
   const {
     data,
     loading,
     error,
     mutate,
-  } = useCachedApi(apiUrl);
+  } = useCachedApi(`/api/admin/courses?type=${mode}`);
 
-  const items = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.courses)
-      ? data.courses
-      : [];
+  const items = data?.courses || [];
 
-  const [modal, setModal] = useState({
-    open: false,
-    type: null,
-    item: null,
-  });
-
-  const [form, setForm] = useState({
-    ...EMPTY_FORM,
-  });
-
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [modalError, setModalError] = useState("");
+  const [justCreated, setJustCreated] = useState(null);
 
-  /**
-   * Ma'lumotlarni qayta yuklash.
+
+  /*
+   * Kurs nomini solishtirish uchun bir xil ko'rinishga keltiramiz.
+   *
+   * Masalan:
+   * "Ekologiya asoslari"
+   * "  Ekologiya   asoslari "
+   *
+   * ikkalasi ham bir xil deb hisoblanadi.
    */
-  const load = useCallback(async () => {
-    await mutate();
-  }, [mutate]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  /**
-   * Modalni yopish.
-   */
-  const closeModal = () => {
-    if (busy) return;
-
-    setModal({
-      open: false,
-      type: null,
-      item: null,
-    });
-
-    setForm({
-      ...EMPTY_FORM,
-    });
-
-    setModalError("");
+  const normalizeTitle = (value = "") => {
+    return value
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
   };
 
-  /**
-   * Yangi kurs yaratish.
-   */
+
   const openCreate = () => {
     setForm({
       ...EMPTY_FORM,
@@ -128,43 +88,25 @@ export default function CourseManager({ mode = "course" }) {
     });
 
     setModal({
-      open: true,
       type: "create",
-      item: null,
     });
 
     setModalError("");
   };
 
-  /**
-   * Kursni tahrirlash.
-   */
+
   const openEdit = (item) => {
     setForm({
       title: item.title || "",
       description: item.description || "",
       category: item.category || "",
-
-      contentType:
-        item.content_type ||
-        item.contentType ||
-        (isArvr ? "ar" : "course"),
-
+      contentType: item.content_type || (isArvr ? "ar" : "course"),
       status: item.status || "active",
-
-      embedUrl:
-        item.embed_url ||
-        item.embedUrl ||
-        "",
-
-      recommended: Boolean(
-        item.recommended ??
-        item.recommended_for_new_users
-      ),
+      embedUrl: item.embed_url || "",
+      recommended: Boolean(item.recommended_for_new_users),
     });
 
     setModal({
-      open: true,
       type: "edit",
       item,
     });
@@ -172,13 +114,20 @@ export default function CourseManager({ mode = "course" }) {
     setModalError("");
   };
 
-  /**
-   * Form qiymatini o'zgartirish.
-   */
-  const handleChange = (field, value) => {
+
+  const closeModal = () => {
+    if (busy) return;
+
+    setModal(null);
+    setModalError("");
+    setForm(EMPTY_FORM);
+  };
+
+
+  const setF = (name, value) => {
     setForm((prev) => ({
       ...prev,
-      [field]: value,
+      [name]: value,
     }));
 
     if (modalError) {
@@ -186,66 +135,45 @@ export default function CourseManager({ mode = "course" }) {
     }
   };
 
-  /**
-   * Kursni yaratish / tahrirlash.
-   */
+
   const save = async () => {
-    /**
-     * Kurs nomini tozalaymiz.
-     */
-    const title = String(form.title || "")
+    const title = form.title
       .replace(/\s+/g, " ")
       .trim();
 
-    /**
-     * Nom bo'sh bo'lmasligi kerak.
+    const description = form.description
+      .replace(/\s+/g, " ")
+      .trim();
+
+
+    /*
+     * 1. Kurs nomi bo'sh bo'lmasligi kerak.
      */
     if (!title) {
-      setModalError(
-        "Kurs nomi kiritilishi shart."
-      );
+      setModalError("Kurs nomi kiritilishi shart.");
       return;
     }
 
-    const isEdit = modal.type === "edit";
 
-    /**
-     * Takroriy nomni tekshirish.
+    /*
+     * 2. Kurs nomi takrorlanmasligi kerak.
      *
-     * Katta-kichik harf farq qilmaydi.
-     *
-     * "Python"
-     * "python"
-     * "PYTHON"
-     *
-     * bir xil hisoblanadi.
+     * Edit qilayotganda aynan o'zining eski nomi
+     * duplicate hisoblanmaydi.
      */
-    const normalizedTitle =
-      normalizeTitle(title);
+    const normalizedTitle = normalizeTitle(title);
+
+    const isEdit = modal?.type === "edit";
 
     const duplicate = items.find((item) => {
-      /**
-       * Tahrirlashda o'zimizni duplicate deb
-       * hisoblamaymiz.
-       */
-      if (
-        isEdit &&
-        item.id === modal.item?.id
-      ) {
+      if (isEdit && item.id === modal.item.id) {
         return false;
       }
 
-      const existingTitle =
-        normalizeTitle(item.title || "");
-
-      return (
-        existingTitle === normalizedTitle
-      );
+      return normalizeTitle(item.title || "") === normalizedTitle;
     });
 
-    /**
-     * Duplicate topildi.
-     */
+
     if (duplicate) {
       setModalError(
         `"${duplicate.title}" nomli kurs allaqachon mavjud. Boshqa nom tanlang.`
@@ -253,619 +181,855 @@ export default function CourseManager({ mode = "course" }) {
       return;
     }
 
+
     setBusy(true);
     setModalError("");
 
+
     try {
-      /**
-       * Backendga yuboriladigan ma'lumot.
+      /*
+       * Oddiy kurs uchun UI'da faqat:
+       *   - nomi
+       *   - tavsifi
        *
-       * Oddiy kursda UI faqat:
-       * - title
-       * - description
+       * ko'rsatiladi.
        *
-       * ko'rsatadi.
-       *
-       * Lekin backend bilan moslik uchun qolgan
-       * qiymatlar ham saqlanadi.
+       * Lekin backend bilan mavjud kontrakt buzilmasligi uchun
+       * qolgan qiymatlar ham yuboriladi.
        */
       const body = {
         title,
-        description: String(
-          form.description || ""
-        ).trim(),
-
-        category: String(
-          form.category || ""
-        ).trim(),
-
-        contentType:
-          form.contentType || "course",
-
-        status:
-          form.status || "active",
-
-        embedUrl: String(
-          form.embedUrl || ""
-        ).trim(),
-
-        recommended: Boolean(
-          form.recommended
-        ),
+        description,
+        category: form.category.trim(),
+        contentType: form.contentType,
+        status: form.status,
+        embedUrl: form.embedUrl.trim(),
+        recommended: Boolean(form.recommended),
       };
 
-      /**
+
+      /*
        * EDIT
        */
       if (isEdit) {
-        await apiFetch(
+        const json = await apiFetch(
           `/api/admin/courses/${modal.item.id}`,
           {
             method: "PATCH",
-            body: JSON.stringify(body),
+            body,
           }
         );
 
-        await mutate();
 
-        closeModal();
+        /*
+         * setItems ishlatilmaydi.
+         *
+         * Chunki bu komponentda items state emas,
+         * useCachedApi ichidan kelayotgan data hisoblanadi.
+         */
+        mutate((prev) => {
+          if (!prev) {
+            return prev;
+          }
+
+          const updatedCourse = json?.course;
+
+          if (!updatedCourse) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            courses: (prev.courses || []).map((item) => {
+              if (item.id !== modal.item.id) {
+                return item;
+              }
+
+              return {
+                ...item,
+                ...updatedCourse,
+
+                /*
+                 * Statistik qiymatlar backend javobida
+                 * kelmasa eski qiymatlarni saqlaymiz.
+                 */
+                students:
+                  updatedCourse.students ??
+                  item.students ??
+                  0,
+
+                lessons_count:
+                  updatedCourse.lessons_count ??
+                  item.lessons_count ??
+                  0,
+              };
+            }),
+          };
+        });
+
+
+        setModal(null);
+        setForm(EMPTY_FORM);
 
         return;
       }
 
-      /**
+
+      /*
        * CREATE
        */
-      const created = await apiFetch(
+      const json = await apiFetch(
         "/api/admin/courses",
         {
           method: "POST",
-          body: JSON.stringify(body),
+          body,
         }
       );
 
-      /**
-       * API turli formatlarda qaytarishi mumkin:
-       *
-       * { course: {...} }
-       *
-       * yoki
-       *
-       * {...}
+
+      const createdCourse = json?.course || json;
+
+
+      /*
+       * Yangi kursni keshdagi ro'yxatga qo'shamiz.
+       * Sahifani reload qilmaymiz.
        */
-      const createdCourse =
-        created?.course || created;
+      mutate((prev) => {
+        if (!prev) {
+          return prev;
+        }
 
-      await mutate();
+        return {
+          ...prev,
+          courses: [
+            {
+              ...createdCourse,
+              students: 0,
+              lessons_count: 0,
+            },
+            ...(prev.courses || []),
+          ],
+        };
+      });
 
-      closeModal();
 
-      /**
-       * Yangi kurs yaratilgandan keyin
-       * dars qo'shish sahifasiga o'tamiz.
+      /*
+       * Kurs yaratilgandan keyin dars qo'shish uchun
+       * notification chiqaramiz.
        */
-      if (createdCourse?.id) {
-        window.location.href =
-          `/admin/courses/${createdCourse.id}`;
-      }
+      setJustCreated(createdCourse);
+
+      setModal(null);
+      setForm(EMPTY_FORM);
+
     } catch (err) {
-      console.error(
-        "Course save error:",
-        err
-      );
+      console.error("Course save error:", err);
 
       setModalError(
         err?.message ||
-          "Amalni bajarishda xatolik yuz berdi."
+        "Kursni saqlashda xatolik yuz berdi."
       );
     } finally {
       setBusy(false);
     }
   };
 
-  /**
+
+  /*
    * Kursni o'chirish.
    */
-  const remove = async (item) => {
-    const confirmed = window.confirm(
-      `"${item.title}" kursini o‘chirishni xohlaysizmi?`
-    );
-
-    if (!confirmed) {
+  const confirmDelete = async () => {
+    if (!modal?.item) {
       return;
     }
 
-    try {
-      setBusy(true);
+    setBusy(true);
+    setModalError("");
 
+
+    try {
       await apiFetch(
-        `/api/admin/courses/${item.id}`,
+        `/api/admin/courses/${modal.item.id}`,
         {
           method: "DELETE",
         }
       );
 
-      await mutate();
-    } catch (err) {
-      console.error(
-        "Course delete error:",
-        err
-      );
 
-      window.alert(
+      /*
+       * Keshdan ham olib tashlaymiz.
+       */
+      mutate((prev) => {
+        if (!prev) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          courses: (prev.courses || []).filter(
+            (item) => item.id !== modal.item.id
+          ),
+        };
+      });
+
+
+      setModal(null);
+      setForm(EMPTY_FORM);
+
+    } catch (err) {
+      console.error("Course delete error:", err);
+
+      setModalError(
         err?.message ||
-          "Kursni o‘chirishda xatolik yuz berdi."
+        "Kursni o'chirishda xatolik yuz berdi."
       );
     } finally {
       setBusy(false);
     }
   };
 
-  /**
-   * Darslar soni.
-   */
-  const getLessonsCount = (item) => {
-    return (
-      item.lessons_count ??
-      item.lesson_count ??
-      item.lessonsCount ??
-      0
-    );
-  };
 
-  /**
-   * O'quvchilar soni.
-   */
-  const getStudentsCount = (item) => {
-    return (
-      item.students_count ??
-      item.student_count ??
-      item.studentsCount ??
-      0
-    );
-  };
+  const title = isArvr
+    ? "AR/VR kontent"
+    : "Kurslar";
 
-  /**
-   * Loading.
+  const createLabel = isArvr
+    ? "Yangi AR/VR kontent"
+    : "Yangi kurs";
+
+
+  /*
+   * Loading
    */
-  if (loading && !data) {
+  if (loading) {
     return (
-      <div className="space-y-6">
+      <>
         <SkeletonPageHead />
-        <SkeletonTable />
-      </div>
+        <SkeletonTable rows={5} cols={5} />
+      </>
     );
   }
 
+
   return (
-    <div className="space-y-6">
+    <>
       {/* HEADER */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="page-head">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isArvr
-              ? "AR/VR kontent"
-              : "Kurslar"}
+          <h1 className="page-title">
+            {title}
           </h1>
 
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="page-sub">
             {isArvr
-              ? "AR/VR ta’lim kontentlarini boshqaring."
-              : "Kurslarni yarating, tahrirlang va boshqaring."}
+              ? "Interaktiv AR/VR modullarni boshqaring — har biriga embed havola biriktiriladi."
+              : "O'quv kurslarini yarating va darslarini boshqaring."}
           </p>
         </div>
 
+
         <button
           type="button"
+          className="btn btn-primary"
           onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
         >
-          <PlusIcon className="h-5 w-5" />
+          <PlusIcon />
           {createLabel}
         </button>
-      </div>
+      </header>
 
-      {/* ERROR */}
+
+      {/* API ERROR */}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          {error?.message ||
-            "Ma’lumotlarni yuklashda xatolik yuz berdi."}
+        <p
+          className="form-error"
+          role="alert"
+          style={{ marginBottom: 14 }}
+        >
+          {error}
+        </p>
+      )}
+
+
+      {/* COURSE CREATED */}
+      {justCreated && (
+        <div
+          className="form-ok"
+          style={{
+            marginBottom: 14,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>
+            <strong>{justCreated.title}</strong>{" "}
+            yaratildi. Endi unga darslar qo'shing —
+            darssiz kurs o'quvchiga bo'sh ko'rinadi.
+          </span>
+
+
+          <span
+            style={{
+              display: "flex",
+              gap: 8,
+            }}
+          >
+            <Link
+              href={`/admin/courses/${justCreated.id}`}
+              className="btn btn-primary btn-sm"
+            >
+              Darslar qo'shish
+            </Link>
+
+
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setJustCreated(null)}
+            >
+              Keyinroq
+            </button>
+          </span>
         </div>
       )}
 
-      {/* TABLE */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-            <thead className="bg-gray-50 dark:bg-gray-800/50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Nomi
-                </th>
 
+      {/* TABLE */}
+      <div className="card tablewrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">
+                Nomi
+              </th>
+
+              {isArvr && (
+                <th scope="col">
+                  Turi
+                </th>
+              )}
+
+              <th scope="col">
+                Holati
+              </th>
+
+              <th scope="col">
+                Darslar
+              </th>
+
+              <th scope="col">
+                O'quvchilar
+              </th>
+
+              <th
+                scope="col"
+                style={{ textAlign: "right" }}
+              >
+                Amallar
+              </th>
+            </tr>
+          </thead>
+
+
+          <tbody>
+            {items.length === 0 && (
+              <tr>
+                <td
+                  colSpan={isArvr ? 6 : 5}
+                  className="empty"
+                >
+                  Hozircha hech narsa yo'q —
+                  "{createLabel}" tugmasi bilan
+                  birinchisini qo'shing.
+                </td>
+              </tr>
+            )}
+
+
+            {items.map((course) => (
+              <tr key={course.id}>
+                <td>
+                  <div className="cell-name">
+                    {course.title}
+                  </div>
+
+                  <div className="cell-sub">
+                    {course.category || "Kategoriyasiz"}
+                  </div>
+                </td>
+
+
+                {/* AR/VR TYPE */}
                 {isArvr && (
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    Turi
-                  </th>
+                  <td>
+                    <span
+                      className={`chip ${
+                        course.content_type === "vr"
+                          ? "chip-sky"
+                          : "chip-amber"
+                      }`}
+                    >
+                      {
+                        CONTENT_TYPE_LABELS[
+                          course.content_type
+                        ] ||
+                        course.content_type
+                      }
+                    </span>
+                  </td>
                 )}
 
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Holati
-                </th>
 
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Darslar
-                </th>
-
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  O‘quvchilar
-                </th>
-
-                <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Amallar
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-              {items.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={isArvr ? 6 : 5}
-                    className="px-6 py-12 text-center"
+                {/* STATUS */}
+                <td>
+                  <span
+                    className={`chip ${
+                      STATUS_CHIPS[course.status] ||
+                      "chip-gray"
+                    }`}
                   >
-                    <div className="flex flex-col items-center justify-center">
-                      <BookIcon className="mb-3 h-10 w-10 text-gray-400" />
+                    {
+                      STATUS_LABELS[course.status] ||
+                      course.status
+                    }
+                  </span>
+                </td>
 
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Hozircha hech narsa yo‘q — &quot;
-                        {createLabel}
-                        &quot; tugmasi bilan birinchisini qo‘shing.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="transition hover:bg-gray-50 dark:hover:bg-gray-800/40"
+
+                {/* LESSONS */}
+                <td>
+                  {course.lessons_count > 0 ? (
+                    <Link
+                      href={`/admin/courses/${course.id}`}
+                      className="chip chip-green"
+                      style={{
+                        textDecoration: "none",
+                      }}
+                    >
+                      {course.lessons_count} dars
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/admin/courses/${course.id}`}
+                      className="chip chip-amber"
+                      style={{
+                        textDecoration: "none",
+                      }}
+                    >
+                      Dars qo'shish
+                    </Link>
+                  )}
+                </td>
+
+
+                {/* STUDENTS */}
+                <td>
+                  {course.students ?? 0}
+                </td>
+
+
+                {/* ACTIONS */}
+                <td
+                  style={{
+                    textAlign: "right",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      gap: 7,
+                    }}
                   >
-                    {/* NAME */}
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
-                          {item.title}
-                        </div>
-
-                        {item.category && (
-                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {item.category}
-                          </div>
-                        )}
-
-                        {item.description && (
-                          <div className="mt-1 max-w-md truncate text-xs text-gray-500 dark:text-gray-400">
-                            {item.description}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* CONTENT TYPE */}
-                    {isArvr && (
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-700 dark:text-gray-300">
-                          {CONTENT_TYPE_LABELS?.[
-                            item.content_type ||
-                              item.contentType
-                          ] ||
-                            item.content_type ||
-                            item.contentType ||
-                            "—"}
-                        </span>
-                      </td>
-                    )}
-
-                    {/* STATUS */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const status =
-                          item.status ||
-                          "active";
-
-                        const chip =
-                          STATUS_CHIPS?.[
-                            status
-                          ] ||
-                          "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-
-                        return (
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${chip}`}
-                          >
-                            {STATUS_LABELS?.[
-                              status
-                            ] || status}
-                          </span>
-                        );
-                      })()}
-                    </td>
-
                     {/* LESSONS */}
-                    <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
-                      {getLessonsCount(item)}
-                    </td>
+                    <Link
+                      href={`/admin/courses/${course.id}`}
+                      className="iconbtn"
+                      aria-label={`${course.title} darslarini boshqarish`}
+                      title="Darslar"
+                    >
+                      <BookIcon />
+                    </Link>
 
-                    {/* STUDENTS */}
-                    <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
-                      {getStudentsCount(item)}
-                    </td>
 
-                    {/* ACTIONS */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* LESSONS */}
-                        <Link
-                          href={`/admin/courses/${item.id}`}
-                          title="Darslarni boshqarish"
-                          className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-400"
-                        >
-                          <BookIcon className="h-5 w-5" />
-                        </Link>
+                    {/* EDIT */}
+                    <button
+                      type="button"
+                      className="iconbtn"
+                      onClick={() => openEdit(course)}
+                      aria-label={`${course.title}ni tahrirlash`}
+                      title="Tahrirlash"
+                    >
+                      <EditIcon />
+                    </button>
 
-                        {/* EDIT */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openEdit(item)
-                          }
-                          title="Tahrirlash"
-                          className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-400"
-                        >
-                          <EditIcon className="h-5 w-5" />
-                        </button>
 
-                        {/* DELETE */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            remove(item)
-                          }
-                          title="O‘chirish"
-                          className="rounded-lg p-2 text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    {/* DELETE */}
+                    <button
+                      type="button"
+                      className="iconbtn is-danger"
+                      onClick={() => {
+                        setModal({
+                          type: "delete",
+                          item: course,
+                        });
+
+                        setModalError("");
+                      }}
+                      aria-label={`${course.title}ni o'chirish`}
+                      title="O'chirish"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* CREATE / EDIT MODAL */}
-      <Modal
-        open={modal.open}
-        onClose={closeModal}
-        title={
-          modal.type === "edit"
-            ? `${createLabel}ni tahrirlash`
-            : `Yangi ${createLabel.toLowerCase()}`
-        }
-      >
-        <div className="space-y-5">
-          {/* ERROR */}
-          {modalError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-              {modalError}
-            </div>
-          )}
 
-          {/* TITLE */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Nomi
+      {/* CREATE / EDIT MODAL */}
+      {(modal?.type === "create" ||
+        modal?.type === "edit") && (
+        <Modal
+          title={
+            modal.type === "create"
+              ? createLabel
+              : "Tahrirlash"
+          }
+          onClose={closeModal}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={closeModal}
+                disabled={busy}
+              >
+                Bekor qilish
+              </button>
+
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={save}
+                disabled={busy}
+              >
+                {busy
+                  ? "Saqlanmoqda..."
+                  : modal.type === "create"
+                    ? "Yaratish"
+                    : "Saqlash"}
+              </button>
+            </>
+          }
+        >
+          {/* NOMI */}
+          <div className="field">
+            <label htmlFor="cm-title">
+              Nomi *
             </label>
 
             <input
-              type="text"
+              id="cm-title"
+              className="input"
               value={form.title}
               onChange={(e) =>
-                handleChange(
-                  "title",
-                  e.target.value
-                )
+                setF("title", e.target.value)
               }
-              placeholder="Kurs nomini kiriting"
-              disabled={busy}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              placeholder={
+                isArvr
+                  ? "Masalan: O'rmon ekotizimi (AR)"
+                  : "Masalan: Ekologiya asoslari"
+              }
+              autoFocus
             />
-
-            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-              Bir xil nomdagi kursni qayta yaratib bo‘lmaydi.
-            </p>
           </div>
 
-          {/* DESCRIPTION */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+
+          {/* TAVSIF */}
+          <div className="field">
+            <label htmlFor="cm-desc">
               Tavsif
             </label>
 
             <textarea
+              id="cm-desc"
+              className="textarea"
               value={form.description}
               onChange={(e) =>
-                handleChange(
+                setF(
                   "description",
                   e.target.value
                 )
               }
-              placeholder="Kurs haqida qisqacha ma’lumot"
-              rows={4}
-              disabled={busy}
-              className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              placeholder="Qisqacha: bu kursda nimalar o'rganiladi?"
             />
           </div>
 
-          {/* AR/VR ONLY */}
-          {isArvr && (
+
+          {/*
+           * ODDIY KURS:
+           *
+           * Yangi kurs yaratishda faqat:
+           *   - Nomi
+           *   - Tavsif
+           *
+           * ko'rsatiladi.
+           *
+           * AR/VR:
+           * Barcha eski sozlamalar ko'rsatiladi.
+           *
+           * EDIT:
+           * Oddiy kursning mavjud ma'lumotlarini
+           * yo'qotib qo'ymaslik uchun eski maydonlar
+           * tahrirlashda ko'rsatiladi.
+           */}
+
+          {(
+            isArvr ||
+            modal.type === "edit"
+          ) && (
             <>
-              {/* CATEGORY */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Kategoriya
-                </label>
+              {/* CATEGORY + TYPE */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                {/* CATEGORY */}
+                <div className="field">
+                  <label htmlFor="cm-cat">
+                    Kategoriya
+                  </label>
 
-                <input
-                  type="text"
-                  value={form.category}
-                  onChange={(e) =>
-                    handleChange(
-                      "category",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Masalan: Biologiya"
-                  disabled={busy}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                />
+                  <input
+                    id="cm-cat"
+                    className="input"
+                    value={form.category}
+                    onChange={(e) =>
+                      setF(
+                        "category",
+                        e.target.value
+                      )
+                    }
+                    placeholder="Ekologiya / Biologiya / ..."
+                  />
+                </div>
+
+
+                {/* CONTENT TYPE */}
+                <div className="field">
+                  <label htmlFor="cm-type">
+                    Kontent turi
+                  </label>
+
+                  <select
+                    id="cm-type"
+                    className="select"
+                    value={form.contentType}
+                    onChange={(e) =>
+                      setF(
+                        "contentType",
+                        e.target.value
+                      )
+                    }
+                  >
+                    <option value="course">
+                      Oddiy kurs
+                    </option>
+
+                    <option value="ar">
+                      AR kontent
+                    </option>
+
+                    <option value="vr">
+                      VR kontent
+                    </option>
+                  </select>
+                </div>
               </div>
 
-              {/* CONTENT TYPE */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Kontent turi
-                </label>
 
-                <select
-                  value={form.contentType}
-                  onChange={(e) =>
-                    handleChange(
-                      "contentType",
-                      e.target.value
-                    )
-                  }
-                  disabled={busy}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                >
-                  <option value="ar">
-                    AR
-                  </option>
+              {/* STATUS + EMBED */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                {/* STATUS */}
+                <div className="field">
+                  <label htmlFor="cm-status">
+                    Holati
+                  </label>
 
-                  <option value="vr">
-                    VR
-                  </option>
+                  <select
+                    id="cm-status"
+                    className="select"
+                    value={form.status}
+                    onChange={(e) =>
+                      setF(
+                        "status",
+                        e.target.value
+                      )
+                    }
+                  >
+                    <option value="active">
+                      Faol — o'quvchilar ko'radi
+                    </option>
 
-                  <option value="arvr">
-                    AR/VR
-                  </option>
-                </select>
+                    <option value="draft">
+                      Qoralama — faqat adminga ko'rinadi
+                    </option>
+
+                    <option value="archived">
+                      Arxiv — ro'yxatdan olinadi
+                    </option>
+                  </select>
+                </div>
+
+
+                {/* EMBED URL */}
+                <div className="field">
+                  <label htmlFor="cm-embed">
+                    Embed havola (ixtiyoriy)
+                  </label>
+
+                  <input
+                    id="cm-embed"
+                    className="input"
+                    value={form.embedUrl}
+                    onChange={(e) =>
+                      setF(
+                        "embedUrl",
+                        e.target.value
+                      )
+                    }
+                    placeholder="https://..."
+                  />
+                </div>
               </div>
 
-              {/* STATUS */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Holati
-                </label>
-
-                <select
-                  value={form.status}
-                  onChange={(e) =>
-                    handleChange(
-                      "status",
-                      e.target.value
-                    )
-                  }
-                  disabled={busy}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                >
-                  <option value="active">
-                    Faol
-                  </option>
-
-                  <option value="draft">
-                    Qoralama
-                  </option>
-
-                  <option value="inactive">
-                    Faol emas
-                  </option>
-                </select>
-              </div>
-
-              {/* EMBED URL */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Embed havola
-                </label>
-
-                <input
-                  type="url"
-                  value={form.embedUrl}
-                  onChange={(e) =>
-                    handleChange(
-                      "embedUrl",
-                      e.target.value
-                    )
-                  }
-                  placeholder="https://..."
-                  disabled={busy}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                />
-              </div>
 
               {/* RECOMMENDED */}
-              <label className="flex cursor-pointer items-center gap-3">
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={form.recommended}
                   onChange={(e) =>
-                    handleChange(
+                    setF(
                       "recommended",
                       e.target.checked
                     )
                   }
-                  disabled={busy}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
 
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  Tavsiya etilgan kontent
-                </span>
+                Yangi o'quvchilarga tavsiya etilsin
               </label>
             </>
           )}
 
-          {/* BUTTONS */}
-          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={closeModal}
-              disabled={busy}
-              className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              Bekor qilish
-            </button>
 
-            <button
-              type="button"
-              onClick={save}
-              disabled={busy}
-              className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          {/* MODAL ERROR */}
+          {modalError && (
+            <p
+              className="form-error"
+              role="alert"
             >
-              {busy
-                ? "Saqlanmoqda..."
-                : modal.type === "edit"
-                  ? "Saqlash"
-                  : "Yaratish"}
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </div>
+              {modalError}
+            </p>
+          )}
+        </Modal>
+      )}
+
+
+      {/* DELETE MODAL */}
+      {modal?.type === "delete" && (
+        <Modal
+          title="O'chirishni tasdiqlang"
+          onClose={closeModal}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={closeModal}
+                disabled={busy}
+              >
+                Bekor qilish
+              </button>
+
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={confirmDelete}
+                disabled={busy}
+              >
+                {busy
+                  ? "O'chirilmoqda..."
+                  : "Ha, o'chirish"}
+              </button>
+            </>
+          }
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: 14.5,
+            }}
+          >
+            <strong>
+              {modal.item.title}
+            </strong>{" "}
+            o'chirilsinmi?
+          </p>
+
+
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13.5,
+              color: "var(--ink-soft)",
+            }}
+          >
+            Ichidagi barcha darslar (
+            {modal.item.lessons_count ?? 0} ta)
+            va o'quvchilarning bu kursga oid
+            yozuvlari ham o'chadi. Bu amalni
+            qaytarib bo'lmaydi.
+          </p>
+
+
+          {modalError && (
+            <p
+              className="form-error"
+              role="alert"
+            >
+              {modalError}
+            </p>
+          )}
+        </Modal>
+      )}
+    </>
   );
 }
