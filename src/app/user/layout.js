@@ -1,150 +1,477 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+
 import {
-  LeafIcon, DashboardIcon, BellIcon, SettingsIcon, LogoutIcon, MenuIcon, CloseIcon,
+  LeafIcon,
+  DashboardIcon,
+  BellIcon,
+  SettingsIcon,
+  LogoutIcon,
+  MenuIcon,
+  CloseIcon,
 } from "@/components/Icons";
 
 const NAV = [
-  { href: "/user", label: "O'quv sahifam", icon: DashboardIcon, exact: true },
-  { href: "/user/notifications", label: "Bildirishnomalar", icon: BellIcon, showCount: true },
-  { href: "/user/settings", label: "Sozlamalar", icon: SettingsIcon },
+  {
+    href: "/user",
+    label: "O'quv sahifam",
+    icon: DashboardIcon,
+    exact: true,
+  },
+  {
+    href: "/user/notifications",
+    label: "Bildirishnomalar",
+    icon: BellIcon,
+    showCount: true,
+  },
+  {
+    href: "/user/settings",
+    label: "Sozlamalar",
+    icon: SettingsIcon,
+  },
 ];
 
 export default function UserLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const closeSidebar = () => setOpen(false);
-  const [profile, setProfile] = useState({ fullName: "", avatarUrl: "" });
-  const [unread, setUnread] = useState(0);
 
-  // Bitta effekt, bitta getUser: profil va o'qilmagan xabarlar soni
-  // parallel olinadi (avval 2 ta alohida effekt 2 marta getUser chaqirardi)
+  const supabase = useMemo(() => createClient(), []);
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profile, setProfile] = useState({
+    fullName: "",
+    avatarUrl: "",
+  });
+
+  const [unread, setUnread] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+  };
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => !prev);
+  };
+
+  /*
+   * Profil + notification count
+   * Bitta getUser va ikkala query parallel ishlaydi.
+   */
   useEffect(() => {
     let cancelled = false;
-    const supabase = createClient();
 
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
+    async function loadUserData() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      const [profileRes, unreadRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("full_name, avatar_url")
-          .eq("id", user.id)
-          .single(),
-        supabase
-          .from("notifications")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("read", false),
-      ]);
+        if (cancelled) return;
 
-      if (cancelled) return;
-      setFullName(profileRes.data?.full_name || user.email || "Foydalanuvchi");
-      setAvatarUrl(profileRes.data?.avatar_url || "");
-      setUnread(unreadRes.count || 0);
-    })();
+        if (!user) {
+          setLoading(false);
+          router.replace("/login");
+          return;
+        }
 
-    const onRead = (e) => setUnread(e.detail?.unread ?? 0);
-    window.addEventListener("greenedu:notifications-read", onRead);
+        const [profileRes, unreadRes] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("full_name, avatar_url")
+            .eq("id", user.id)
+            .single(),
+
+          supabase
+            .from("notifications")
+            .select("id", {
+              count: "exact",
+              head: true,
+            })
+            .eq("user_id", user.id)
+            .eq("read", false),
+        ]);
+
+        if (cancelled) return;
+
+        setProfile({
+          fullName:
+            profileRes.data?.full_name ||
+            user.user_metadata?.full_name ||
+            user.email ||
+            "Foydalanuvchi",
+
+          avatarUrl: profileRes.data?.avatar_url || "",
+        });
+
+        setUnread(unreadRes.count || 0);
+      } catch {
+        if (!cancelled) {
+          setProfile({
+            fullName: "Foydalanuvchi",
+            avatarUrl: "",
+          });
+
+          setUnread(0);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadUserData();
+
     return () => {
       cancelled = true;
-      window.removeEventListener("greenedu:notifications-read", onRead);
+    };
+  }, [supabase, router]);
+
+  /*
+   * Notification sahifasidan keladigan event.
+   */
+  useEffect(() => {
+    const onRead = (event) => {
+      const nextUnread = event.detail?.unread;
+
+      if (typeof nextUnread === "number") {
+        setUnread(nextUnread);
+      }
+    };
+
+    window.addEventListener(
+      "greenedu:notifications-read",
+      onRead
+    );
+
+    return () => {
+      window.removeEventListener(
+        "greenedu:notifications-read",
+        onRead
+      );
     };
   }, []);
 
+  /*
+   * Profile sahifasidan keladigan update event.
+   */
+  useEffect(() => {
+    const onProfileUpdate = (event) => {
+      const detail = event.detail || {};
+
+      setProfile((prev) => ({
+        fullName:
+          detail.fullName !== undefined
+            ? detail.fullName
+            : prev.fullName,
+
+        avatarUrl:
+          detail.avatarUrl !== undefined
+            ? detail.avatarUrl
+            : prev.avatarUrl,
+      }));
+    };
+
+    window.addEventListener(
+      "greenedu:profile-updated",
+      onProfileUpdate
+    );
+
+    return () => {
+      window.removeEventListener(
+        "greenedu:profile-updated",
+        onProfileUpdate
+      );
+    };
+  }, []);
+
+  /*
+   * Mobile sidebar:
+   * Escape bilan yopish.
+   */
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeSidebar();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+    };
+  }, [sidebarOpen]);
+
+  /*
+   * Sidebar ochilganda mobile'da
+   * asosiy sahifani scroll qilishni bloklaymiz.
+   */
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [sidebarOpen]);
+
+  /*
+   * Mobile'da route o'zgarganda sidebar yopiladi.
+   */
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+
+    try {
+      await supabase.auth.signOut();
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setLoggingOut(false);
+    }
   };
 
-  const firstName = (profile.fullName || "").trim().split(/\s+/)[0] || "Do'stim";
+  const firstName =
+    profile.fullName
+      ?.trim()
+      .split(/\s+/)[0] || "Do'stim";
+
+  const avatarLetter =
+    profile.fullName?.trim()?.charAt(0)?.toUpperCase() || "G";
 
   return (
     <div className="shell">
-      <div
-        className={`sidebar-overlay ${open ? "is-open" : ""}`}
+      {/* Mobile overlay */}
+      <button
+        type="button"
+        className={`sidebar-overlay ${
+          sidebarOpen ? "is-open" : ""
+        }`}
         onClick={closeSidebar}
-        aria-hidden="true"
+        aria-label="Menyuni yopish"
+        tabIndex={sidebarOpen ? 0 : -1}
       />
-      <aside className={`sidebar ${open ? "is-open" : ""}`}>
-        <Link href="/user" className="sidebar-brand">
-          <span className="brand-mark"><LeafIcon /></span>
-          <span>
-            <span className="brand-name">GreenEdu</span><br />
-            <span className="brand-tag">O'quvchi</span>
+
+      {/* Sidebar */}
+      <aside
+        className={`sidebar ${
+          sidebarOpen ? "is-open" : ""
+        }`}
+        aria-label="Foydalanuvchi menyusi"
+      >
+        {/* Brand */}
+        <Link
+          href="/user"
+          className="sidebar-brand"
+          onClick={closeSidebar}
+          aria-label="GreenEdu o'quvchi sahifasi"
+        >
+          <span className="brand-mark" aria-hidden="true">
+            <LeafIcon />
+          </span>
+
+          <span className="brand-copy">
+            <span className="brand-name">
+              GreenEdu
+            </span>
+
+            <span className="brand-tag">
+              O'quvchi
+            </span>
           </span>
         </Link>
-        <nav className="nav" aria-label="Asosiy menyu">
-          {NAV.map((item) => {
-            const active = item.exact
-              ? pathname === item.href
-              : pathname.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href} href={item.href}
-                className={`nav-link ${active ? "is-active" : ""}`}
-                onClick={closeSidebar}
-                aria-current={active ? "page" : undefined}
-              >
-                <Icon />
-                <span>{item.label}</span>
-                {item.showCount && unread > 0 && <span className="nav-count">{unread}</span>}
-              </Link>
-            );
-          })}
+
+        {/* Navigation */}
+        <nav
+          className="nav"
+          aria-label="Asosiy menyu"
+        >
+          <div className="nav-main">
+            {NAV.map((item) => {
+              const active = item.exact
+                ? pathname === item.href
+                : pathname.startsWith(item.href);
+
+              const Icon = item.icon;
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`nav-link ${
+                    active ? "is-active" : ""
+                  }`}
+                  onClick={closeSidebar}
+                  aria-current={
+                    active ? "page" : undefined
+                  }
+                >
+                  <span
+                    className="nav-icon"
+                    aria-hidden="true"
+                  >
+                    <Icon />
+                  </span>
+
+                  <span className="nav-label">
+                    {item.label}
+                  </span>
+
+                  {item.showCount && unread > 0 && (
+                    <span
+                      className="nav-count"
+                      aria-label={`${unread} ta o'qilmagan bildirishnoma`}
+                    >
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Logout */}
           <button
             type="button"
-            className="nav-link"
+            className="nav-link nav-logout"
             onClick={handleLogout}
-            style={{ background: "none", border: 0, cursor: "pointer", width: "100%", textAlign: "left", font: "inherit", marginTop: "auto" }}
+            disabled={loggingOut}
+            aria-label={
+              loggingOut
+                ? "Hisobdan chiqilmoqda"
+                : "Hisobdan chiqish"
+            }
           >
-            <LogoutIcon />
-            <span>Chiqish</span>
+            <span
+              className="nav-icon"
+              aria-hidden="true"
+            >
+              <LogoutIcon />
+            </span>
+
+            <span className="nav-label">
+              {loggingOut
+                ? "Chiqilmoqda..."
+                : "Chiqish"}
+            </span>
           </button>
         </nav>
+
+        {/* User profile */}
         <div className="sidebar-footer">
-          {profile.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.avatarUrl} alt=""
-              className="avatar"
-              style={{ objectFit: "cover" }}
-            />
-          ) : (
-            <span className="avatar">{(profile.fullName || "?").charAt(0).toUpperCase()}</span>
-          )}
-          <span>
-            <span className="sf-name">{profile.fullName}</span><br />
-            <span className="sf-role">O'quvchi</span>
-          </span>
-          <button type="button" className="sf-logout" onClick={handleLogout} aria-label="Chiqish">
+          <Link
+            href="/user/settings"
+            className="sidebar-user"
+            onClick={closeSidebar}
+            aria-label="Profil sozlamalarini ochish"
+          >
+            {profile.avatarUrl ? (
+              <img
+                src={profile.avatarUrl}
+                alt=""
+                className="avatar sidebar-avatar"
+                width="40"
+                height="40"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <span
+                className="avatar sidebar-avatar"
+                aria-hidden="true"
+              >
+                {avatarLetter}
+              </span>
+            )}
+
+            <span className="sidebar-user-info">
+              <span className="sf-name">
+                {loading
+                  ? "Yuklanmoqda..."
+                  : profile.fullName || "Foydalanuvchi"}
+              </span>
+
+              <span className="sf-role">
+                O'quvchi
+              </span>
+            </span>
+          </Link>
+
+          <button
+            type="button"
+            className="sf-logout"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            aria-label="Hisobdan chiqish"
+          >
             <LogoutIcon />
           </button>
         </div>
       </aside>
 
+      {/* Main */}
       <div className="shell-main">
         <header className="topbar">
           <button
-            type="button" className="iconbtn menu-btn"
-            onClick={() => setOpen((v) => !v)}
-            aria-label={open ? "Menyuni yopish" : "Menyuni ochish"}
+            type="button"
+            className="iconbtn menu-btn"
+            onClick={toggleSidebar}
+            aria-label={
+              sidebarOpen
+                ? "Menyuni yopish"
+                : "Menyuni ochish"
+            }
+            aria-expanded={sidebarOpen}
+            aria-controls="greenedu-user-sidebar"
           >
-            {open ? <CloseIcon /> : <MenuIcon />}
+            {sidebarOpen ? (
+              <CloseIcon />
+            ) : (
+              <MenuIcon />
+            )}
           </button>
-          <span className="topbar-title">Salom, {firstName}! 🌱</span>
+
+          <div className="topbar-greeting">
+            <span className="topbar-title">
+              Salom, {firstName}!
+            </span>
+
+            <span
+              className="topbar-leaf"
+              aria-hidden="true"
+            >
+              🌱
+            </span>
+          </div>
         </header>
-        <main id="main-content" className="shell-content" tabIndex={-1}>{children}</main>
+
+        <main
+          id="main-content"
+          className="shell-content"
+          tabIndex={-1}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

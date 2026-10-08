@@ -9213,3 +9213,542 @@ textarea:focus-visible,
     transition: none;
   }
 }
+
+
+/* =========================================================
+   GREENEDU USER LAYOUT
+   Lightweight / mobile-first / no glassmorphism
+   ========================================================= */
+
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  background: var(--paper);
+}
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 100;
+
+  width: 248px;
+  height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+
+  background: var(--paper);
+  border-right: 1px solid var(--moss-line);
+
+  padding: 18px 14px 14px;
+}
+
+/* Brand */
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  min-height: 48px;
+  padding: 5px 8px;
+
+  color: inherit;
+  text-decoration: none;
+
+  border-radius: 12px;
+}
+
+.sidebar-brand:hover {
+  background: var(--moss-soft);
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 11px;
+
+  background: var(--leaf);
+  color: #fff;
+
+  box-shadow: 0 2px 6px rgba(35, 85, 45, 0.12);
+}
+
+.brand-mark svg {
+  width: 21px;
+  height: 21px;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name {
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.brand-tag {
+  margin-top: 3px;
+
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+
+.nav {
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+
+  margin-top: 24px;
+}
+
+.nav-main {
+  display: grid;
+  gap: 5px;
+}
+
+.nav-link {
+  position: relative;
+
+  width: 100%;
+  min-height: 44px;
+
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  padding: 9px 11px;
+
+  border: 0;
+  border-radius: 11px;
+
+  background: transparent;
+  color: var(--ink-soft);
+
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+
+  text-decoration: none;
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.nav-link:hover {
+  background: var(--moss-soft);
+  color: var(--leaf-deep);
+}
+
+.nav-link.is-active {
+  background: var(--moss-soft);
+  color: var(--leaf-deep);
+  font-weight: 750;
+}
+
+.nav-link.is-active::before {
+  content: "";
+
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+
+  width: 3px;
+
+  border-radius: 0 4px 4px 0;
+
+  background: var(--leaf);
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+
+  display: grid;
+  place-items: center;
+}
+
+.nav-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-count {
+  min-width: 22px;
+  height: 22px;
+
+  margin-left: auto;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 6px;
+
+  border-radius: 999px;
+
+  background: var(--leaf);
+  color: #fff;
+
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.nav-logout {
+  margin-top: auto;
+  color: var(--ink-faint);
+}
+
+.nav-logout:hover {
+  color: #a13d35;
+  background: rgba(170, 70, 60, 0.06);
+}
+
+.nav-logout:disabled,
+.sf-logout:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* =========================================================
+   SIDEBAR FOOTER
+   ========================================================= */
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  margin-top: 12px;
+  padding: 11px 7px 4px;
+
+  border-top: 1px solid var(--moss-line);
+}
+
+.sidebar-user {
+  min-width: 0;
+  flex: 1;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  color: inherit;
+  text-decoration: none;
+
+  border-radius: 10px;
+}
+
+.sidebar-user:hover .sf-name {
+  color: var(--leaf-deep);
+}
+
+.sidebar-avatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+}
+
+.sidebar-user-info {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.sf-name {
+  overflow: hidden;
+
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-role {
+  margin-top: 2px;
+
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
+.sf-logout {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+
+  display: grid;
+  place-items: center;
+
+  border: 0;
+  border-radius: 9px;
+
+  background: transparent;
+  color: var(--ink-faint);
+
+  cursor: pointer;
+}
+
+.sf-logout:hover {
+  background: rgba(170, 70, 60, 0.07);
+  color: #a13d35;
+}
+
+.sf-logout svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* =========================================================
+   MAIN
+   ========================================================= */
+
+.shell-main {
+  min-width: 0;
+  width: calc(100% - 248px);
+  margin-left: 248px;
+
+  min-height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================================
+   TOPBAR
+   ========================================================= */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+
+  min-height: 60px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 24px;
+
+  background: rgba(250, 252, 248, 0.96);
+  border-bottom: 1px solid var(--moss-line);
+
+  backdrop-filter: blur(8px);
+}
+
+.topbar-greeting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbar-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.topbar-leaf {
+  font-size: 15px;
+}
+
+.menu-btn {
+  display: none;
+}
+
+/* =========================================================
+   CONTENT
+   ========================================================= */
+
+.shell-content {
+  width: 100%;
+  max-width: 1280px;
+
+  margin: 0 auto;
+  padding: 28px 30px 50px;
+}
+
+.shell-content:focus {
+  outline: none;
+}
+
+/* =========================================================
+   MOBILE OVERLAY
+   ========================================================= */
+
+.sidebar-overlay {
+  display: none;
+
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+
+  width: 100%;
+  height: 100%;
+
+  padding: 0;
+  border: 0;
+
+  background: rgba(20, 35, 25, 0.32);
+
+  cursor: pointer;
+}
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 230px;
+  }
+
+  .shell-main {
+    width: calc(100% - 230px);
+    margin-left: 230px;
+  }
+
+  .shell-content {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 720px) {
+  .sidebar {
+    width: min(285px, 86vw);
+
+    transform: translateX(-100%);
+
+    box-shadow: 8px 0 30px rgba(20, 45, 25, 0.08);
+
+    transition: transform 0.18s ease;
+  }
+
+  .sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition:
+      opacity 0.18s ease,
+      visibility 0.18s ease;
+  }
+
+  .sidebar-overlay.is-open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .shell-main {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .topbar {
+    min-height: 56px;
+
+    padding: 0 14px;
+
+    background: var(--paper);
+  }
+
+  .menu-btn {
+    width: 40px;
+    height: 40px;
+
+    display: grid;
+    place-items: center;
+
+    margin-right: 10px;
+  }
+
+  .menu-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .shell-content {
+    padding: 20px 15px 36px;
+  }
+}
+
+/* =========================================================
+   SMALL PHONES
+   ========================================================= */
+
+@media (max-width: 420px) {
+  .shell-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .topbar {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .topbar-title {
+    font-size: 13.5px;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-overlay,
+  .nav-link,
+  .sf-logout {
+    transition: none;
+  }
+}
