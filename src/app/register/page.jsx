@@ -1,8 +1,12 @@
-
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+
+/* =========================================================
+   ICONS
+========================================================= */
 
 function EyeIcon({ visible = false }) {
   if (visible) {
@@ -20,6 +24,7 @@ function EyeIcon({ visible = false }) {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
+
         <circle
           cx="12"
           cy="12"
@@ -88,6 +93,10 @@ function LeafIcon() {
   );
 }
 
+/* =========================================================
+   REGISTER PAGE
+========================================================= */
+
 export default function RegisterPage() {
   const [form, setForm] = useState({
     fullName: "",
@@ -101,6 +110,11 @@ export default function RegisterPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  /* =======================================================
+     INPUT CHANGE
+  ======================================================= */
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -113,83 +127,224 @@ export default function RegisterPage() {
     if (error) {
       setError("");
     }
+
+    if (success) {
+      setSuccess("");
+    }
   };
+
+  /* =======================================================
+     REGISTER
+  ======================================================= */
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     setError("");
+    setSuccess("");
 
-    /* =========================
-       VALIDATSIYA
-    ========================= */
+    /* -------------------------------------------------------
+       VALIDATION
+    ------------------------------------------------------- */
 
-    if (!form.fullName.trim()) {
+    const fullName = form.fullName.trim();
+    const email = form.email.trim().toLowerCase();
+    const password = form.password;
+    const confirm = form.confirm;
+
+    if (!fullName) {
       setError("Ism va familiyangizni kiriting.");
       return;
     }
 
-    if (!form.email.trim()) {
+    if (fullName.length < 2) {
+      setError("Ism va familiya juda qisqa.");
+      return;
+    }
+
+    if (!email) {
       setError("Email manzilini kiriting.");
       return;
     }
 
-    if (!form.email.includes("@")) {
+    /* Email validation */
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
       setError("Email manzilini to‘g‘ri kiriting.");
       return;
     }
 
-    if (!form.password) {
+    if (!password) {
       setError("Parolni kiriting.");
       return;
     }
 
-    if (form.password.length < 6) {
-      setError("Parol kamida 6 ta belgidan iborat bo‘lishi kerak.");
+    if (password.length < 6) {
+      setError(
+        "Parol kamida 6 ta belgidan iborat bo‘lishi kerak."
+      );
       return;
     }
 
-    if (!form.confirm) {
+    if (!confirm) {
       setError("Parolni qayta kiriting.");
       return;
     }
 
-    if (form.password !== form.confirm) {
+    if (password !== confirm) {
       setError("Parollar bir xil emas.");
       return;
     }
 
+    /* -------------------------------------------------------
+       START
+    ------------------------------------------------------- */
+
     setLoading(true);
 
     try {
-      /*
-       * MAVJUD SUPABASE REGISTER KODINGIZNI
-       * SHU YERGA QO'YASIZ.
-       */
+      const supabase = createClient();
 
-      console.log("Register:", form);
+      /* -----------------------------------------------------
+         SUPABASE AUTH REGISTER
+      ----------------------------------------------------- */
+
+      const {
+        data,
+        error: signUpError,
+      } = await supabase.auth.signUp({
+        email,
+        password,
+
+        options: {
+          data: {
+            full_name: fullName,
+          },
+
+          emailRedirectTo:
+            `${window.location.origin}/login`,
+        },
+      });
+
+      /* -----------------------------------------------------
+         SUPABASE ERROR
+      ----------------------------------------------------- */
+
+      if (signUpError) {
+        console.error(
+          "Supabase register error:",
+          signUpError
+        );
+
+        const message =
+          signUpError.message?.toLowerCase() || "";
+
+        if (
+          message.includes("already registered") ||
+          message.includes("already exists") ||
+          message.includes("user already registered")
+        ) {
+          setError(
+            "Bu email manzili bilan hisob allaqachon mavjud."
+          );
+        } else if (
+          message.includes("password")
+        ) {
+          setError(
+            "Parol talablarga javob bermaydi."
+          );
+        } else if (
+          message.includes("email")
+        ) {
+          setError(
+            "Email manzilini tekshiring."
+          );
+        } else {
+          setError(
+            signUpError.message ||
+              "Ro‘yxatdan o‘tishda xatolik yuz berdi."
+          );
+        }
+
+        return;
+      }
+
+      console.log(
+        "GreenEdu register success:",
+        data
+      );
+
+      /* -----------------------------------------------------
+         EMAIL CONFIRMATION YOQILGAN
+      ----------------------------------------------------- */
+
+      if (data?.user && !data?.session) {
+        setSuccess(
+          "Hisob muvaffaqiyatli yaratildi! Email manzilingizni tasdiqlash uchun emailingizni tekshiring."
+        );
+
+        setForm({
+          fullName: "",
+          email: "",
+          password: "",
+          confirm: "",
+        });
+
+        return;
+      }
+
+      /* -----------------------------------------------------
+         EMAIL CONFIRMATION O‘CHIRILGAN
+      ------------------------------------------------------- */
+
+      if (data?.session) {
+        window.location.href = "/user";
+        return;
+      }
+
+      /* -----------------------------------------------------
+         FALLBACK
+      ------------------------------------------------------- */
+
+      setSuccess(
+        "Hisob muvaffaqiyatli yaratildi. Endi tizimga kirishingiz mumkin."
+      );
+
+      setForm({
+        fullName: "",
+        email: "",
+        password: "",
+        confirm: "",
+      });
     } catch (err) {
-      console.error(err);
+      console.error(
+        "Register unexpected error:",
+        err
+      );
 
       setError(
-        "Ro‘yxatdan o‘tish vaqtida xatolik yuz berdi."
+        err?.message ||
+          "Ro‘yxatdan o‘tish vaqtida kutilmagan xatolik yuz berdi."
       );
     } finally {
       setLoading(false);
     }
   };
 
+  /* =========================================================
+     UI
+  ========================================================= */
+
   return (
     <main className="green-auth-page">
-
       {/* =====================================================
           LEFT — GREENEDU BRAND
       ====================================================== */}
 
       <section className="green-auth-hero">
-
         <div className="green-auth-top">
-
           <Link
             href="/"
             className="green-auth-logo"
@@ -210,12 +365,9 @@ export default function RegisterPage() {
           >
             Bosh sahifa
           </Link>
-
         </div>
 
-
         <div className="green-auth-content">
-
           <div className="green-auth-badge">
             <span>🌱</span>
             Yashil o‘quv dasturi
@@ -228,53 +380,50 @@ export default function RegisterPage() {
           </h1>
 
           <p>
-            GreenEdu platformasida ekologiya, biologiya va
-            geografiyani zamonaviy AR/VR texnologiyalari
-            orqali interaktiv tarzda o‘rganing.
+            GreenEdu platformasida ekologiya,
+            biologiya va geografiyani zamonaviy
+            AR/VR texnologiyalari orqali
+            interaktiv tarzda o‘rganing.
           </p>
 
-
           <div className="green-auth-features">
-
             <div className="green-auth-feature">
               <span>🌍</span>
 
               <div>
                 <strong>Ekologik ta’lim</strong>
+
                 <small>
                   Tabiatni yaxshiroq anglang
                 </small>
               </div>
             </div>
 
-
             <div className="green-auth-feature">
               <span>🥽</span>
 
               <div>
                 <strong>AR / VR darslar</strong>
+
                 <small>
                   Interaktiv o‘rganish tajribasi
                 </small>
               </div>
             </div>
 
-
             <div className="green-auth-feature">
               <span>🏆</span>
 
               <div>
                 <strong>XP va nishonlar</strong>
+
                 <small>
                   Bilimingizni rivojlantiring
                 </small>
               </div>
             </div>
-
           </div>
-
         </div>
-
 
         {/* Nature decoration */}
 
@@ -295,10 +444,10 @@ export default function RegisterPage() {
           </div>
 
           <div className="auth-mountain auth-mountain-back" />
+
           <div className="auth-mountain auth-mountain-front" />
 
           <div className="auth-ground">
-
             <span className="auth-tree tree-1">
               🌳
             </span>
@@ -316,25 +465,19 @@ export default function RegisterPage() {
             </span>
 
             <div className="auth-river" />
-
           </div>
         </div>
-
       </section>
-
 
       {/* =====================================================
           RIGHT — REGISTER
       ====================================================== */}
 
       <section className="green-auth-form-side">
-
         <div className="green-auth-card">
-
           {/* Mobile logo */}
 
           <div className="green-auth-mobile-logo">
-
             <span className="green-auth-logo-icon">
               <LeafIcon />
             </span>
@@ -342,14 +485,11 @@ export default function RegisterPage() {
             <span>
               <strong>Green</strong>Edu
             </span>
-
           </div>
-
 
           {/* Heading */}
 
           <div className="green-auth-heading">
-
             <div className="green-auth-small-badge">
               🌿 GreenEdu
             </div>
@@ -359,11 +499,10 @@ export default function RegisterPage() {
             </h2>
 
             <p>
-              GreenEdu bilan tabiatni o‘rganishni boshlang.
+              GreenEdu bilan tabiatni
+              o‘rganishni boshlang.
             </p>
-
           </div>
-
 
           {/* Form */}
 
@@ -372,11 +511,9 @@ export default function RegisterPage() {
             onSubmit={handleSubmit}
             noValidate
           >
-
             {/* FULL NAME */}
 
             <div className="green-auth-field">
-
               <label htmlFor="fullName">
                 Ism va familiya
               </label>
@@ -389,15 +526,13 @@ export default function RegisterPage() {
                 value={form.fullName}
                 onChange={handleChange}
                 autoComplete="name"
+                disabled={loading}
               />
-
             </div>
-
 
             {/* EMAIL */}
 
             <div className="green-auth-field">
-
               <label htmlFor="email">
                 Email
               </label>
@@ -412,21 +547,18 @@ export default function RegisterPage() {
                 autoComplete="email"
                 inputMode="email"
                 spellCheck={false}
+                disabled={loading}
               />
-
             </div>
-
 
             {/* PASSWORD */}
 
             <div className="green-auth-field">
-
               <label htmlFor="password">
                 Parol
               </label>
 
               <div className="green-auth-password">
-
                 <input
                   id="password"
                   name="password"
@@ -439,6 +571,7 @@ export default function RegisterPage() {
                   value={form.password}
                   onChange={handleChange}
                   autoComplete="new-password"
+                  disabled={loading}
                 />
 
                 <button
@@ -455,27 +588,23 @@ export default function RegisterPage() {
                       : "Parolni ko‘rsatish"
                   }
                   aria-pressed={showPassword}
+                  disabled={loading}
                 >
                   <EyeIcon
                     visible={showPassword}
                   />
                 </button>
-
               </div>
-
             </div>
-
 
             {/* CONFIRM PASSWORD */}
 
             <div className="green-auth-field">
-
               <label htmlFor="confirm">
                 Parolni tasdiqlang
               </label>
 
               <div className="green-auth-password">
-
                 <input
                   id="confirm"
                   name="confirm"
@@ -488,6 +617,7 @@ export default function RegisterPage() {
                   value={form.confirm}
                   onChange={handleChange}
                   autoComplete="new-password"
+                  disabled={loading}
                 />
 
                 <button
@@ -504,16 +634,14 @@ export default function RegisterPage() {
                       : "Tasdiqlash parolini ko‘rsatish"
                   }
                   aria-pressed={showConfirm}
+                  disabled={loading}
                 >
                   <EyeIcon
                     visible={showConfirm}
                   />
                 </button>
-
               </div>
-
             </div>
-
 
             {/* ERROR */}
 
@@ -523,10 +651,21 @@ export default function RegisterPage() {
                 role="alert"
               >
                 <span>!</span>
-                {error}
+                <p>{error}</p>
               </div>
             )}
 
+            {/* SUCCESS */}
+
+            {success && (
+              <div
+                className="green-auth-success"
+                role="status"
+              >
+                <span>✓</span>
+                <p>{success}</p>
+              </div>
+            )}
 
             {/* BUTTON */}
 
@@ -547,54 +686,35 @@ export default function RegisterPage() {
                 </>
               )}
             </button>
-
           </form>
-
 
           {/* Divider */}
 
           <div className="green-auth-divider">
-
             <span />
-
-            <span>
-              yoki
-            </span>
-
+            <span>yoki</span>
             <span />
-
           </div>
-
 
           {/* Login */}
 
           <div className="green-auth-bottom">
-
             <p>
               Hisobingiz bormi?{" "}
-
               <Link href="/login">
                 Tizimga kiring
               </Link>
             </p>
-
           </div>
-
 
           {/* Security */}
 
           <div className="green-auth-safe">
-
             <span>🔒</span>
-
             Ma’lumotlaringiz xavfsiz saqlanadi
-
           </div>
-
         </div>
-
       </section>
-
     </main>
   );
 }
