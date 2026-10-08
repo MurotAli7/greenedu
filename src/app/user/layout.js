@@ -368,12 +368,6 @@ export default function UserLayout({ children }) {
             >
               <LogoutIcon />
             </span>
-
-            <span className="nav-label">
-              {loggingOut
-                ? "Chiqilmoqda..."
-                : "Chiqish"}
-            </span>
           </button>
         </nav>
 
