@@ -362,12 +362,7 @@ export default function UserLayout({ children }) {
                 : "Hisobdan chiqish"
             }
           >
-            <span
-              className="nav-icon"
-              aria-hidden="true"
-            >
-              <LogoutIcon />
-            </span>
+           
           </button>
         </nav>
 
