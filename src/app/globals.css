@@ -3931,3 +3931,1199 @@ textarea:focus-visible,
     transition: none;
   }
 }
+
+
+/* =========================================================
+   GREENEDU LOGIN — ECO ADVENTURE AUTH
+   Mobil-first responsive login
+   ========================================================= */
+
+.green-login-page {
+  min-height: 100dvh;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(420px, 0.92fr);
+  overflow: hidden;
+  background: #f8fbf4;
+}
+
+/* ---------- LEFT VISUAL ---------- */
+
+.green-login-visual {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      180deg,
+      #c9edf1 0%,
+      #e7f5df 58%,
+      #b8d997 100%
+    );
+}
+
+.login-visual-content {
+  position: relative;
+  min-height: 100dvh;
+  padding: clamp(28px, 4vw, 58px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------- LOGO ---------- */
+
+.login-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  text-decoration: none;
+  color: #245a38;
+  font-weight: 800;
+  font-size: 23px;
+  position: relative;
+  z-index: 20;
+}
+
+.login-logo-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: #3e9b57;
+  background: #ffffff;
+  box-shadow: 0 7px 20px rgba(38, 91, 52, 0.12);
+}
+
+.login-logo-mark svg {
+  width: 27px;
+  height: 27px;
+}
+
+/* ---------- INTRO ---------- */
+
+.login-intro {
+  position: relative;
+  z-index: 10;
+  margin-top: clamp(44px, 8vh, 92px);
+  max-width: 500px;
+}
+
+.login-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #37744a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.login-intro h2 {
+  margin: 18px 0 12px;
+  color: #204d32;
+  font-size: clamp(38px, 4.4vw, 64px);
+  line-height: 0.98;
+  letter-spacing: -2.5px;
+}
+
+.login-intro h2 strong {
+  color: #3b9453;
+}
+
+.login-intro p {
+  max-width: 440px;
+  margin: 0;
+  color: #477158;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+/* ---------- WORLD ---------- */
+
+.login-world {
+  position: absolute;
+  inset: auto 0 0;
+  height: 51%;
+  min-height: 300px;
+  pointer-events: none;
+}
+
+.login-sun {
+  position: absolute;
+  width: clamp(70px, 8vw, 115px);
+  height: clamp(70px, 8vw, 115px);
+  right: 12%;
+  top: 3%;
+  border-radius: 50%;
+  background: #ffd76a;
+  box-shadow: 0 0 0 16px rgba(255, 215, 106, 0.15);
+}
+
+.login-cloud {
+  position: absolute;
+  width: 90px;
+  height: 28px;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.login-cloud::before,
+.login-cloud::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  background: inherit;
+}
+
+.login-cloud::before {
+  width: 40px;
+  height: 40px;
+  left: 18px;
+  bottom: 7px;
+}
+
+.login-cloud::after {
+  width: 31px;
+  height: 31px;
+  right: 18px;
+  bottom: 6px;
+}
+
+.login-cloud-1 {
+  left: 11%;
+  top: 13%;
+}
+
+.login-cloud-2 {
+  right: 34%;
+  top: 27%;
+  transform: scale(0.72);
+  opacity: 0.72;
+}
+
+.login-mountain {
+  position: absolute;
+  bottom: 21%;
+  width: 0;
+  height: 0;
+  border-left: 150px solid transparent;
+  border-right: 150px solid transparent;
+}
+
+.login-mountain-back {
+  left: 5%;
+  border-bottom: 155px solid #a9cfad;
+}
+
+.login-mountain-front {
+  left: 25%;
+  border-left-width: 190px;
+  border-right-width: 190px;
+  border-bottom: 190px solid #7fb27d;
+}
+
+/* ---------- TREES ---------- */
+
+.login-tree {
+  position: absolute;
+  bottom: 20%;
+  width: 58px;
+  height: 120px;
+}
+
+.login-tree::before,
+.login-tree::after,
+.login-tree span {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  background: #4f9b55;
+}
+
+.login-tree::before {
+  width: 58px;
+  height: 58px;
+  left: 0;
+  top: 10px;
+}
+
+.login-tree::after {
+  width: 47px;
+  height: 47px;
+  left: 20px;
+  top: 0;
+}
+
+.login-tree span {
+  width: 43px;
+  height: 43px;
+  left: -14px;
+  top: 33px;
+}
+
+.login-tree i {
+  position: absolute;
+  width: 13px;
+  height: 55px;
+  left: 27px;
+  top: 65px;
+  border-radius: 10px;
+  background: #805d3e;
+}
+
+.login-tree-1 {
+  left: 5%;
+  transform: scale(0.9);
+}
+
+.login-tree-2 {
+  left: 72%;
+  bottom: 19%;
+  transform: scale(0.7);
+}
+
+.login-tree-3 {
+  left: 88%;
+  bottom: 20%;
+  transform: scale(0.95);
+}
+
+/* ---------- SCHOOL ---------- */
+
+.login-school {
+  position: absolute;
+  z-index: 8;
+  left: 48%;
+  bottom: 18%;
+  width: 145px;
+}
+
+.login-school-roof {
+  width: 0;
+  height: 0;
+  margin: 0 auto;
+  border-left: 80px solid transparent;
+  border-right: 80px solid transparent;
+  border-bottom: 55px solid #e88757;
+}
+
+.login-school-body {
+  position: relative;
+  height: 92px;
+  border-radius: 4px 4px 10px 10px;
+  background: #fff9df;
+  border: 3px solid #e0c88e;
+}
+
+.login-school-window {
+  position: absolute;
+  top: 22px;
+  width: 25px;
+  height: 25px;
+  border: 3px solid #4b8e83;
+  background: #b9e5e4;
+}
+
+.login-school-window:first-child {
+  left: 18px;
+}
+
+.login-school-window:nth-child(2) {
+  right: 18px;
+}
+
+.login-school-door {
+  position: absolute;
+  bottom: 0;
+  left: 55px;
+  width: 35px;
+  height: 53px;
+  border-radius: 6px 6px 0 0;
+  background: #8c6646;
+}
+
+.login-school-sign {
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  transform: translate(-50%, -100%);
+  padding: 5px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+  background: #fff;
+  color: #34724a;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+/* ---------- RIVER ---------- */
+
+.login-river {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -16%;
+  height: 35%;
+  background: #80c9d3;
+  clip-path: ellipse(60% 55% at 50% 100%);
+}
+
+/* ---------- FLOWERS ---------- */
+
+.login-flower {
+  position: absolute;
+  z-index: 10;
+  bottom: 19%;
+  width: 16px;
+  height: 38px;
+}
+
+.login-flower::before,
+.login-flower::after {
+  content: "";
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #e98576;
+}
+
+.login-flower::before {
+  left: -5px;
+  top: 0;
+}
+
+.login-flower::after {
+  right: -5px;
+  top: 0;
+}
+
+.login-flower span {
+  position: absolute;
+  width: 5px;
+  height: 28px;
+  left: 6px;
+  top: 7px;
+  border-radius: 5px;
+  background: #4e9857;
+}
+
+.login-flower-1 {
+  left: 39%;
+}
+
+.login-flower-2 {
+  left: 64%;
+  transform: scale(0.8);
+}
+
+/* ---------- BIRDS ---------- */
+
+.login-bird {
+  position: absolute;
+  color: #46725b;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.login-bird-1 {
+  left: 35%;
+  top: 16%;
+}
+
+.login-bird-2 {
+  left: 58%;
+  top: 9%;
+  transform: scale(0.7);
+}
+
+/* ---------- CHARACTERS ---------- */
+
+.login-character {
+  position: absolute;
+  z-index: 12;
+  bottom: 21%;
+  width: 30px;
+  height: 70px;
+}
+
+.character-head {
+  position: absolute;
+  left: 6px;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #d99369;
+}
+
+.character-body {
+  position: absolute;
+  left: 2px;
+  top: 21px;
+  width: 30px;
+  height: 42px;
+  border-radius: 14px 14px 5px 5px;
+  background: #4d9c64;
+}
+
+.login-character-1 {
+  left: 55%;
+  transform: scale(0.8);
+}
+
+.login-character-2 {
+  left: 61%;
+  bottom: 20%;
+  transform: scale(0.62);
+}
+
+/* ---------- BADGE ---------- */
+
+.login-badge {
+  position: absolute;
+  z-index: 30;
+  right: clamp(24px, 5vw, 70px);
+  bottom: 10%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 35px rgba(42, 84, 50, 0.13);
+}
+
+.login-badge > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #e8f4dc;
+}
+
+.login-badge strong,
+.login-badge small {
+  display: block;
+}
+
+.login-badge strong {
+  color: #285d39;
+  font-size: 12px;
+}
+
+.login-badge small {
+  margin-top: 2px;
+  color: #739078;
+  font-size: 9px;
+}
+
+/* =========================================================
+   LOGIN FORM
+   ========================================================= */
+
+.green-login-form-side {
+  min-width: 0;
+  width: 100%;
+  min-height: 100dvh;
+  padding: 40px clamp(22px, 5vw, 80px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.green-login-card {
+  width: 100%;
+  max-width: 430px;
+}
+
+.green-login-mobile-brand {
+  display: none;
+}
+
+/* ---------- CARD HEADER ---------- */
+
+.login-card-top {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.login-welcome-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #eef7e7;
+  font-size: 22px;
+}
+
+.login-small-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #6f8d77;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.green-login-card h1 {
+  margin: 0;
+  color: #214f31;
+  font-size: clamp(28px, 3vw, 34px);
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+
+.green-login-lead {
+  margin: 12px 0 28px;
+  color: #728378;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ---------- FORM ---------- */
+
+.green-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  width: 100%;
+}
+
+.green-login-field {
+  width: 100%;
+}
+
+.green-login-field > label {
+  display: block;
+  margin-bottom: 7px;
+  color: #31533b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.green-input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.green-input-icon {
+  position: absolute;
+  z-index: 2;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6d9676;
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.green-login-input {
+  width: 100%;
+  min-width: 0;
+  height: 52px;
+  padding: 0 15px 0 43px;
+  box-sizing: border-box;
+  border: 1.5px solid #dce8dd;
+  border-radius: 13px;
+  outline: none;
+  background: #fbfdf9;
+  color: #244731;
+  font-family: inherit;
+  font-size: 16px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.green-login-input::placeholder {
+  color: #a4b2a7;
+}
+
+.green-login-input:focus {
+  border-color: #65a76e;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(101, 167, 110, 0.11);
+}
+
+/*
+   PasswordInput mavjud loyihangizniki.
+   Uning wrapper/inputlarini GreenEdu login dizayniga moslaymiz.
+*/
+
+.green-login-field .pw-wrap {
+  width: 100%;
+  max-width: 100%;
+}
+
+.green-login-field .pw-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  box-sizing: border-box;
+  border-radius: 13px;
+  font-size: 16px;
+}
+
+/* ---------- ERROR ---------- */
+
+.green-login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  background: #fff2ee;
+  border: 1px solid #f4d3ca;
+  color: #a54e42;
+}
+
+.green-login-error > span {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #df725f;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.green-login-error p {
+  margin: 1px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* ---------- BUTTON ---------- */
+
+.green-login-button {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 3px;
+  padding: 13px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 13px;
+  background: #3f9557;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 9px 22px rgba(63, 149, 87, 0.18);
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.green-login-button:hover:not(:disabled) {
+  background: #347f49;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 27px rgba(63, 149, 87, 0.23);
+}
+
+.green-login-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.green-login-button:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.login-spinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: greenLoginSpin 0.7s linear infinite;
+}
+
+@keyframes greenLoginSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- LINKS ---------- */
+
+.green-login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 25px 0 20px;
+}
+
+.green-login-divider span {
+  height: 1px;
+  flex: 1;
+  background: #e8eee8;
+}
+
+.green-login-divider small {
+  color: #a2ada4;
+  font-size: 11px;
+}
+
+.green-login-links {
+  text-align: center;
+  color: #7b887e;
+  font-size: 13px;
+}
+
+.green-login-links p {
+  margin: 10px 0 0;
+}
+
+.green-login-links a {
+  color: #34814b;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.green-login-links a:hover {
+  text-decoration: underline;
+}
+
+.green-login-links .forgot-link {
+  font-size: 13px;
+}
+
+/* ---------- TRUST ---------- */
+
+.green-login-trust {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 27px;
+  padding-top: 20px;
+  border-top: 1px solid #edf1ed;
+}
+
+.green-login-trust > span {
+  font-size: 19px;
+}
+
+.green-login-trust p {
+  margin: 0;
+  color: #809087;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* ---------- BACK ---------- */
+
+.green-login-back {
+  margin-top: 28px;
+  color: #7c8b80;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.green-login-back:hover {
+  color: #34814b;
+}
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 1050px) {
+  .green-login-page {
+    grid-template-columns: minmax(0, 0.9fr) minmax(390px, 1fr);
+  }
+
+  .login-intro {
+    margin-top: 55px;
+  }
+
+  .login-intro h2 {
+    font-size: 42px;
+  }
+
+  .login-intro p {
+    font-size: 14px;
+  }
+
+  .login-badge {
+    right: 25px;
+  }
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 800px) {
+  .green-login-page {
+    display: block;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    background: #fff;
+  }
+
+  /*
+    Chap desktop panel endi tepada ixcham banner sifatida
+    ko'rinadi. Butunlay yashirmaymiz.
+  */
+
+  .green-login-visual {
+    height: 190px;
+    min-height: 190px;
+    overflow: hidden;
+  }
+
+  .login-visual-content {
+    min-height: 190px;
+    padding: 20px 22px;
+  }
+
+  .login-intro {
+    display: none;
+  }
+
+  .login-brand {
+    font-size: 20px;
+  }
+
+  .login-logo-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .login-logo-mark svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .login-world {
+    height: 165px;
+    min-height: 0;
+    bottom: -25px;
+  }
+
+  .login-sun {
+    width: 55px;
+    height: 55px;
+    right: 12%;
+    top: 4%;
+  }
+
+  .login-cloud {
+    transform: scale(0.65);
+  }
+
+  .login-cloud-1 {
+    left: 25%;
+    top: 12%;
+  }
+
+  .login-cloud-2 {
+    right: 25%;
+    top: 25%;
+  }
+
+  .login-mountain-back {
+    left: -10%;
+    border-left-width: 110px;
+    border-right-width: 110px;
+    border-bottom-width: 100px;
+  }
+
+  .login-mountain-front {
+    left: 30%;
+    border-left-width: 125px;
+    border-right-width: 125px;
+    border-bottom-width: 125px;
+  }
+
+  .login-tree-1 {
+    left: 4%;
+    transform: scale(0.55);
+  }
+
+  .login-tree-2 {
+    left: 76%;
+    transform: scale(0.5);
+  }
+
+  .login-tree-3 {
+    left: 91%;
+    transform: scale(0.5);
+  }
+
+  .login-school {
+    left: 46%;
+    bottom: 16%;
+    transform: scale(0.62);
+    transform-origin: bottom center;
+  }
+
+  .login-character {
+    display: none;
+  }
+
+  .login-badge {
+    display: none;
+  }
+
+  .login-flower {
+    display: none;
+  }
+
+  .green-login-form-side {
+    min-height: calc(100dvh - 190px);
+    padding: 28px 22px 30px;
+    justify-content: flex-start;
+  }
+
+  .green-login-mobile-brand {
+    display: none;
+  }
+
+  .green-login-card {
+    max-width: 470px;
+  }
+
+  .green-login-back {
+    margin-top: 22px;
+  }
+}
+
+/* =========================================================
+   SMALL PHONES
+   ========================================================= */
+
+@media (max-width: 480px) {
+  .green-login-visual {
+    height: 145px;
+    min-height: 145px;
+  }
+
+  .login-visual-content {
+    min-height: 145px;
+    padding: 16px 17px;
+  }
+
+  .login-brand {
+    font-size: 18px;
+    gap: 8px;
+  }
+
+  .login-logo-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .login-logo-mark svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .login-world {
+    height: 128px;
+    bottom: -17px;
+  }
+
+  .login-sun {
+    width: 42px;
+    height: 42px;
+  }
+
+  .login-school {
+    left: 43%;
+    transform: scale(0.5);
+  }
+
+  .login-tree-1 {
+    transform: scale(0.45);
+  }
+
+  .login-tree-2,
+  .login-tree-3 {
+    transform: scale(0.4);
+  }
+
+  .green-login-form-side {
+    min-height: calc(100dvh - 145px);
+    padding: 25px 16px 25px;
+  }
+
+  .login-card-top {
+    gap: 10px;
+  }
+
+  .login-welcome-icon {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+    border-radius: 12px;
+    font-size: 20px;
+  }
+
+  .green-login-card h1 {
+    font-size: 27px;
+  }
+
+  .login-small-label {
+    font-size: 11px;
+  }
+
+  .green-login-lead {
+    margin-top: 10px;
+    margin-bottom: 23px;
+    font-size: 13px;
+  }
+
+  .green-login-form {
+    gap: 15px;
+  }
+
+  .green-login-input {
+    height: 51px;
+    border-radius: 12px;
+  }
+
+  .green-login-field .pw-input {
+    min-height: 51px;
+    border-radius: 12px;
+  }
+
+  .green-login-button {
+    min-height: 51px;
+    border-radius: 12px;
+  }
+
+  .green-login-divider {
+    margin: 22px 0 17px;
+  }
+
+  .green-login-trust {
+    margin-top: 23px;
+    padding-top: 17px;
+  }
+
+  .green-login-back {
+    margin-top: 20px;
+  }
+}
+
+/* =========================================================
+   VERY SMALL PHONES — 360px
+   ========================================================= */
+
+@media (max-width: 360px) {
+  .green-login-visual {
+    height: 125px;
+    min-height: 125px;
+  }
+
+  .login-visual-content {
+    min-height: 125px;
+    padding: 13px 14px;
+  }
+
+  .login-world {
+    height: 112px;
+  }
+
+  .green-login-form-side {
+    min-height: calc(100dvh - 125px);
+    padding: 22px 13px;
+  }
+
+  .green-login-card h1 {
+    font-size: 25px;
+  }
+
+  .green-login-lead {
+    font-size: 12.5px;
+  }
+
+  .green-login-field > label {
+    font-size: 12px;
+  }
+
+  .green-login-links {
+    font-size: 12px;
+  }
+}
+
+/* =========================================================
+   LANDSCAPE PHONE
+   ========================================================= */
+
+@media (max-height: 600px) and (max-width: 800px) {
+  .green-login-visual {
+    height: 105px;
+    min-height: 105px;
+  }
+
+  .login-visual-content {
+    min-height: 105px;
+  }
+
+  .login-world {
+    height: 100px;
+  }
+
+  .green-login-form-side {
+    min-height: calc(100dvh - 105px);
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+
+  .green-login-lead {
+    margin-bottom: 15px;
+  }
+
+  .green-login-form {
+    gap: 11px;
+  }
+
+  .green-login-divider,
+  .green-login-trust {
+    display: none;
+  }
+
+  .green-login-back {
+    margin-top: 12px;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITY / REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .green-login-button,
+  .green-login-input {
+    transition: none;
+  }
+
+  .login-spinner {
+    animation: none;
+  }
+}
