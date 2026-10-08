@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Suspense, useState } from "react";
@@ -8,108 +7,10 @@ import { createClient } from "@/lib/supabase/client";
 import PasswordInput from "@/components/PasswordInput";
 import { safePath } from "@/lib/api/validate";
 
-function GreenLoginIllustration() {
-  return (
-    <div className="login-world" aria-hidden="true">
-      <div className="login-sun" />
-
-      <div className="login-cloud login-cloud-1" />
-      <div className="login-cloud login-cloud-2" />
-
-      <div className="login-mountain login-mountain-back" />
-      <div className="login-mountain login-mountain-front" />
-
-      <div className="login-tree login-tree-1">
-        <span />
-        <i />
-      </div>
-
-      <div className="login-tree login-tree-2">
-        <span />
-        <i />
-      </div>
-
-      <div className="login-tree login-tree-3">
-        <span />
-        <i />
-      </div>
-
-      <div className="login-school">
-        <div className="login-school-roof" />
-        <div className="login-school-body">
-          <div className="login-school-window" />
-          <div className="login-school-window" />
-          <div className="login-school-door" />
-        </div>
-        <div className="login-school-sign">GREEN EDU</div>
-      </div>
-
-      <div className="login-river" />
-
-      <div className="login-flower login-flower-1">
-        <span />
-      </div>
-
-      <div className="login-flower login-flower-2">
-        <span />
-      </div>
-
-      <div className="login-bird login-bird-1">⌁</div>
-      <div className="login-bird login-bird-2">⌁</div>
-
-      <div className="login-character login-character-1">
-        <div className="character-head" />
-        <div className="character-body" />
-      </div>
-
-      <div className="login-character login-character-2">
-        <div className="character-head" />
-        <div className="character-body" />
-      </div>
-
-      <div className="login-badge">
-        <span>🌱</span>
-        <div>
-          <strong>Yashil bilim</strong>
-          <small>Kelajak shu yerdan boshlanadi</small>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GreenLeafMark() {
-  return (
-    <div className="login-logo-mark" aria-hidden="true">
-      <svg viewBox="0 0 48 48" fill="none">
-        <path
-          d="M37.5 7.5C23 8.3 12.1 14.1 9.2 24.7c-2.2 8.1 2.5 14.8 9.7 15.8 9.2 1.2 17.3-7.3 18.6-18.7.5-4.4.2-9.1 0-14.3Z"
-          fill="currentColor"
-        />
-        <path
-          d="M9.7 39.4c7.1-9.8 13.5-16.1 25.7-23.2"
-          stroke="white"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-      </svg>
-    </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={null}>
-      <LoginForm />
-    </Suspense>
-  );
-}
-
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Faqat ichki yo'llarga qayta yo'naltirish
   const from = safePath(searchParams.get("from"), "");
 
   const [form, setForm] = useState({
@@ -125,10 +26,6 @@ function LoginForm() {
       ...prev,
       [e.target.name]: e.target.value,
     }));
-
-    if (error) {
-      setError("");
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -188,94 +85,178 @@ function LoginForm() {
   };
 
   return (
-    <div className="green-login-page">
-      {/* Chap ekologik qism */}
-      <section className="green-login-visual">
-        <div className="login-visual-content">
-          <Link href="/" className="login-brand">
-            <GreenLeafMark />
-            <span>GreenEdu</span>
-          </Link>
+    <div className="greenedu-login">
+      {/* =========================
+          REALISTIC VISUAL SIDE
+      ========================== */}
+      <section className="greenedu-login-visual">
+        <div className="greenedu-login-photo" />
 
-          <div className="login-intro">
-            <span className="login-kicker">
-              🌍 Ekologik ta'lim olamiga qayting
+        <div className="greenedu-login-overlay" />
+
+        <div className="greenedu-login-brand">
+          <Link href="/" className="greenedu-brand-link">
+            <span className="greenedu-brand-mark">
+              <svg
+                viewBox="0 0 40 40"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M20 34C20 34 7 27.8 7 17.8C7 11.9 11.4 7 17 7C19.8 7 22.3 8.2 24 10.2C25.7 8.2 28.2 7 31 7C36.6 7 41 11.9 41 17.8C41 27.8 28 34 20 34Z"
+                  fill="currentColor"
+                  transform="translate(-4 0)"
+                />
+                <path
+                  d="M20 12C17.5 16.5 17 22.5 20 30"
+                  stroke="white"
+                  strokeWidth="2.3"
+                  strokeLinecap="round"
+                />
+              </svg>
             </span>
 
-            <h2>
-              Bilim bilan
-              <br />
-              <strong>tabiatni asrang.</strong>
-            </h2>
+            <span>GreenEdu</span>
+          </Link>
+        </div>
 
-            <p>
-              AR/VR darslar, interaktiv tajribalar va qiziqarli
-              ekologik sarguzashtlar sizni kutmoqda.
-            </p>
+        <div className="greenedu-login-content">
+          <span className="greenedu-eyebrow">
+            Yashil ta'lim • Yangi avlod
+          </span>
+
+          <h2>
+            Tabiatni o'rganing.
+            <br />
+            Kelajakni yarating.
+          </h2>
+
+          <p>
+            GreenEdu orqali ekologiya, tabiat va atrof-muhit
+            haqidagi bilimlarni zamonaviy va interaktiv usulda
+            o'rganing.
+          </p>
+
+          <div className="greenedu-login-features">
+            <div className="greenedu-feature">
+              <span className="feature-icon">✓</span>
+              <span>Interaktiv darslar</span>
+            </div>
+
+            <div className="greenedu-feature">
+              <span className="feature-icon">✓</span>
+              <span>AR / VR tajribalar</span>
+            </div>
+
+            <div className="greenedu-feature">
+              <span className="feature-icon">✓</span>
+              <span>Amaliy ekologik bilimlar</span>
+            </div>
           </div>
+        </div>
 
-          <GreenLoginIllustration />
+        <div className="greenedu-login-bottom">
+          <span>© {new Date().getFullYear()} GreenEdu</span>
+          <span className="greenedu-bottom-dot" />
+          <span>Ekologik ta'lim platformasi</span>
         </div>
       </section>
 
-      {/* Login qismi */}
-      <main className="green-login-form-side" id="main-content">
-        <div className="green-login-mobile-brand">
-          <Link href="/" className="login-brand">
-            <GreenLeafMark />
+      {/* =========================
+          LOGIN SIDE
+      ========================== */}
+      <main
+        id="main-content"
+        className="greenedu-login-form-side"
+      >
+        <div className="greenedu-mobile-brand">
+          <Link href="/" className="greenedu-mobile-logo">
+            <span className="greenedu-mobile-mark">
+              <svg
+                viewBox="0 0 40 40"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M20 34C20 34 7 27.8 7 17.8C7 11.9 11.4 7 17 7C19.8 7 22.3 8.2 24 10.2C25.7 8.2 28.2 7 31 7C36.6 7 41 11.9 41 17.8C41 27.8 28 34 20 34Z"
+                  fill="currentColor"
+                  transform="translate(-4 0)"
+                />
+                <path
+                  d="M20 12C17.5 16.5 17 22.5 20 30"
+                  stroke="white"
+                  strokeWidth="2.3"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+
             <span>GreenEdu</span>
           </Link>
         </div>
 
-        <div className="green-login-card">
-          <div className="login-card-top">
-            <span className="login-welcome-icon">👋</span>
+        <div className="greenedu-login-card">
+          <div className="greenedu-login-heading">
+            <span className="greenedu-form-label">
+              GreenEdu platformasi
+            </span>
 
-            <div>
-              <span className="login-small-label">
-                GreenEdu olamiga
-              </span>
+            <h1>Xush kelibsiz</h1>
 
-              <h1>Xush kelibsiz!</h1>
-            </div>
+            <p>
+              Hisobingizga kiring va o'qishni davom ettiring.
+            </p>
           </div>
-
-          <p className="green-login-lead">
-            Hisobingizga kiring va o'qishni davom ettiring.
-          </p>
 
           <form
             onSubmit={handleSubmit}
-            className="green-login-form"
+            className="greenedu-auth-form"
             noValidate
           >
-            <div className="green-login-field">
-              <label htmlFor="login-email">Email</label>
+            {/* EMAIL */}
+            <div className="greenedu-field">
+              <label htmlFor="email">Email</label>
 
-              <div className="green-input-wrap">
-                <span className="green-input-icon" aria-hidden="true">
-                  ✉
-                </span>
+              <div className="greenedu-input-wrapper">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M4 5.5h16v13H4v-13Z"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="m5 7 7 5 7-5"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
 
                 <input
-                  id="login-email"
+                  id="email"
                   name="email"
                   type="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck="false"
-                  className="green-login-input"
                   placeholder="siz@misol.uz"
                   value={form.email}
                   onChange={handleChange}
                   autoComplete="username"
                   autoFocus
+                  inputMode="email"
+                  spellCheck="false"
                 />
               </div>
             </div>
 
-            <div className="green-login-field">
+            {/* PASSWORD */}
+            <div className="greenedu-password-field">
               <PasswordInput
                 label="Parol"
                 name="password"
@@ -287,65 +268,109 @@ function LoginForm() {
 
             {error && (
               <div
-                className="green-login-error"
+                className="greenedu-form-error"
                 role="alert"
-                aria-live="polite"
               >
                 <span>!</span>
                 <p>{error}</p>
               </div>
             )}
 
+            <div className="greenedu-forgot-row">
+              <Link href="/forgot-password">
+                Parolni unutdingizmi?
+              </Link>
+            </div>
+
             <button
               type="submit"
-              className="green-login-button"
+              className="greenedu-login-button"
               disabled={loading}
             >
               {loading ? (
                 <>
-                  <span className="login-spinner" />
+                  <span className="greenedu-spinner" />
                   Tekshirilmoqda...
                 </>
               ) : (
                 <>
-                  Kirish
-                  <span aria-hidden="true">→</span>
+                  <span>Kirish</span>
+
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5 12h13"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="m13 6 6 6-6 6"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </>
               )}
             </button>
           </form>
 
-          <div className="green-login-divider">
-            <span />
-            <small>yoki</small>
-            <span />
-          </div>
+          <div className="greenedu-register">
+            <span>Hali hisobingiz yo'qmi?</span>
 
-          <div className="green-login-links">
-            <Link href="/forgot-password" className="forgot-link">
-              Parolni unutdingizmi?
+            <Link href="/register">
+              Ro'yxatdan o'tish
             </Link>
-
-            <p>
-              Hisobingiz yo'qmi?{" "}
-              <Link href="/register">Ro'yxatdan o'ting</Link>
-            </p>
           </div>
 
-          <div className="green-login-trust">
-            <span>🌱</span>
-            <p>
-              GreenEdu bilan bilim oling,
-              <br />
-              tabiatga foyda keltiring.
-            </p>
+          <div className="greenedu-secure">
+            <span className="greenedu-secure-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                <rect
+                  x="5"
+                  y="10"
+                  width="14"
+                  height="10"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                />
+                <path
+                  d="M8 10V7.5a4 4 0 0 1 8 0V10"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+
+            <span>
+              Hisob ma'lumotlaringiz xavfsiz saqlanadi
+            </span>
           </div>
         </div>
 
-        <Link href="/" className="green-login-back">
-          ← Bosh sahifaga qaytish
-        </Link>
+        <div className="greenedu-mobile-footer">
+          GreenEdu · Ekologik ta'lim platformasi
+        </div>
       </main>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
