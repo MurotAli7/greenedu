@@ -85,31 +85,33 @@ function LoginForm() {
   };
 
   return (
-    <div className="greenedu-login">
-      {/* =========================
-          REALISTIC VISUAL SIDE
-      ========================== */}
+    <div className="greenedu-login-page">
+      {/* ==================================================
+          LEFT / IMAGE SIDE
+      ================================================== */}
       <section className="greenedu-login-visual">
         <div className="greenedu-login-photo" />
 
         <div className="greenedu-login-overlay" />
 
+        {/* LOGO */}
         <div className="greenedu-login-brand">
-          <Link href="/" className="greenedu-brand-link">
-            <span className="greenedu-brand-mark">
+          <Link href="/" className="greenedu-brand">
+            <span className="greenedu-brand-icon">
               <svg
-                viewBox="0 0 40 40"
+                viewBox="0 0 42 42"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
                 aria-hidden="true"
               >
                 <path
-                  d="M20 34C20 34 7 27.8 7 17.8C7 11.9 11.4 7 17 7C19.8 7 22.3 8.2 24 10.2C25.7 8.2 28.2 7 31 7C36.6 7 41 11.9 41 17.8C41 27.8 28 34 20 34Z"
+                  d="M21 36C21 36 7 29.5 7 18.8C7 12.2 11.8 7 17.7 7C21.1 7 24 8.9 25.5 11.7C27.1 8.9 29.9 7 33.3 7C39.2 7 44 12.2 44 18.8C44 29.5 30 36 21 36Z"
                   fill="currentColor"
                   transform="translate(-4 0)"
                 />
+
                 <path
-                  d="M20 12C17.5 16.5 17 22.5 20 30"
+                  d="M20 12C17.7 16.8 17.8 23.5 20.5 30"
                   stroke="white"
                   strokeWidth="2.3"
                   strokeLinecap="round"
@@ -117,75 +119,90 @@ function LoginForm() {
               </svg>
             </span>
 
-            <span>GreenEdu</span>
+            <span className="greenedu-brand-text">
+              GreenEdu
+            </span>
           </Link>
         </div>
 
-        <div className="greenedu-login-content">
-          <span className="greenedu-eyebrow">
+        {/* MAIN TEXT */}
+        <div className="greenedu-visual-content">
+          <div className="greenedu-visual-badge">
+            <span className="greenedu-badge-dot" />
             Yashil ta'lim • Yangi avlod
-          </span>
+          </div>
 
           <h2>
-            Tabiatni o'rganing.
+            Tabiatni
+            <br />
+            <span>o'rganing.</span>
             <br />
             Kelajakni yarating.
           </h2>
 
           <p>
-            GreenEdu orqali ekologiya, tabiat va atrof-muhit
-            haqidagi bilimlarni zamonaviy va interaktiv usulda
-            o'rganing.
+            GreenEdu — ekologiya va tabiatni zamonaviy,
+            interaktiv hamda qiziqarli usulda o'rganish
+            uchun yaratilgan ta'lim platformasi.
           </p>
 
-          <div className="greenedu-login-features">
-            <div className="greenedu-feature">
-              <span className="feature-icon">✓</span>
+          <div className="greenedu-visual-features">
+            <div className="greenedu-visual-feature">
+              <span className="feature-check">✓</span>
               <span>Interaktiv darslar</span>
             </div>
 
-            <div className="greenedu-feature">
-              <span className="feature-icon">✓</span>
+            <div className="greenedu-visual-feature">
+              <span className="feature-check">✓</span>
               <span>AR / VR tajribalar</span>
             </div>
 
-            <div className="greenedu-feature">
-              <span className="feature-icon">✓</span>
-              <span>Amaliy ekologik bilimlar</span>
+            <div className="greenedu-visual-feature">
+              <span className="feature-check">✓</span>
+              <span>Ekologik bilimlar</span>
             </div>
           </div>
         </div>
 
-        <div className="greenedu-login-bottom">
-          <span>© {new Date().getFullYear()} GreenEdu</span>
-          <span className="greenedu-bottom-dot" />
-          <span>Ekologik ta'lim platformasi</span>
+        {/* BOTTOM */}
+        <div className="greenedu-visual-bottom">
+          <span>
+            © {new Date().getFullYear()} GreenEdu
+          </span>
+
+          <span className="visual-divider" />
+
+          <span>
+            Ekologik ta'lim platformasi
+          </span>
         </div>
       </section>
 
-      {/* =========================
-          LOGIN SIDE
-      ========================== */}
+      {/* ==================================================
+          RIGHT / FORM SIDE
+      ================================================== */}
       <main
         id="main-content"
         className="greenedu-login-form-side"
       >
+        {/* MOBILE LOGO */}
         <div className="greenedu-mobile-brand">
           <Link href="/" className="greenedu-mobile-logo">
-            <span className="greenedu-mobile-mark">
+            <span className="greenedu-mobile-icon">
               <svg
-                viewBox="0 0 40 40"
+                viewBox="0 0 42 42"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
                 aria-hidden="true"
               >
                 <path
-                  d="M20 34C20 34 7 27.8 7 17.8C7 11.9 11.4 7 17 7C19.8 7 22.3 8.2 24 10.2C25.7 8.2 28.2 7 31 7C36.6 7 41 11.9 41 17.8C41 27.8 28 34 20 34Z"
+                  d="M21 36C21 36 7 29.5 7 18.8C7 12.2 11.8 7 17.7 7C21.1 7 24 8.9 25.5 11.7C27.1 8.9 29.9 7 33.3 7C39.2 7 44 12.2 44 18.8C44 29.5 30 36 21 36Z"
                   fill="currentColor"
                   transform="translate(-4 0)"
                 />
+
                 <path
-                  d="M20 12C17.5 16.5 17 22.5 20 30"
+                  d="M20 12C17.7 16.8 17.8 23.5 20.5 30"
                   stroke="white"
                   strokeWidth="2.3"
                   strokeLinecap="round"
@@ -198,8 +215,9 @@ function LoginForm() {
         </div>
 
         <div className="greenedu-login-card">
+          {/* HEADING */}
           <div className="greenedu-login-heading">
-            <span className="greenedu-form-label">
+            <span className="greenedu-form-eyebrow">
               GreenEdu platformasi
             </span>
 
@@ -210,6 +228,7 @@ function LoginForm() {
             </p>
           </div>
 
+          {/* FORM */}
           <form
             onSubmit={handleSubmit}
             className="greenedu-auth-form"
@@ -217,20 +236,26 @@ function LoginForm() {
           >
             {/* EMAIL */}
             <div className="greenedu-field">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">
+                Email
+              </label>
 
-              <div className="greenedu-input-wrapper">
+              <div className="greenedu-input-box">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
                   aria-hidden="true"
                 >
-                  <path
-                    d="M4 5.5h16v13H4v-13Z"
+                  <rect
+                    x="3.5"
+                    y="5"
+                    width="17"
+                    height="14"
+                    rx="2"
                     stroke="currentColor"
                     strokeWidth="1.7"
-                    strokeLinejoin="round"
                   />
+
                   <path
                     d="m5 7 7 5 7-5"
                     stroke="currentColor"
@@ -266,22 +291,28 @@ function LoginForm() {
               />
             </div>
 
+            {/* ERROR */}
             {error && (
               <div
                 className="greenedu-form-error"
                 role="alert"
               >
-                <span>!</span>
+                <span className="error-icon">
+                  !
+                </span>
+
                 <p>{error}</p>
               </div>
             )}
 
-            <div className="greenedu-forgot-row">
+            {/* FORGOT */}
+            <div className="greenedu-forgot">
               <Link href="/forgot-password">
                 Parolni unutdingizmi?
               </Link>
             </div>
 
+            {/* BUTTON */}
             <button
               type="submit"
               className="greenedu-login-button"
@@ -307,6 +338,7 @@ function LoginForm() {
                       strokeWidth="1.8"
                       strokeLinecap="round"
                     />
+
                     <path
                       d="m13 6 6 6-6 6"
                       stroke="currentColor"
@@ -320,16 +352,20 @@ function LoginForm() {
             </button>
           </form>
 
+          {/* REGISTER */}
           <div className="greenedu-register">
-            <span>Hali hisobingiz yo'qmi?</span>
+            <span>
+              Hali hisobingiz yo'qmi?
+            </span>
 
             <Link href="/register">
               Ro'yxatdan o'tish
             </Link>
           </div>
 
-          <div className="greenedu-secure">
-            <span className="greenedu-secure-icon">
+          {/* SECURITY */}
+          <div className="greenedu-security">
+            <span className="security-icon">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -344,21 +380,30 @@ function LoginForm() {
                   stroke="currentColor"
                   strokeWidth="1.6"
                 />
+
                 <path
                   d="M8 10V7.5a4 4 0 0 1 8 0V10"
                   stroke="currentColor"
                   strokeWidth="1.6"
                   strokeLinecap="round"
                 />
+
+                <circle
+                  cx="12"
+                  cy="15"
+                  r="1"
+                  fill="currentColor"
+                />
               </svg>
             </span>
 
             <span>
-              Hisob ma'lumotlaringiz xavfsiz saqlanadi
+              Ma'lumotlaringiz xavfsiz saqlanadi
             </span>
           </div>
         </div>
 
+        {/* MOBILE FOOTER */}
         <div className="greenedu-mobile-footer">
           GreenEdu · Ekologik ta'lim platformasi
         </div>
