@@ -42,8 +42,10 @@ const NAV = [
  * USER LAYOUT
  * =========================================================
  *
- * UserDataProvider barcha umumiy user ma'lumotlarini saqlaydi.
- * Shu sababli profile/unread har bir sahifada qayta fetch qilinmaydi.
+ * UserDataProvider umumiy user ma'lumotlarini saqlaydi.
+ *
+ * Profile, unread va boshqa umumiy ma'lumotlar
+ * har bir sahifada qayta fetch qilinmaydi.
  */
 
 export default function UserLayout({ children }) {
@@ -69,15 +71,15 @@ function UserLayoutContent({ children }) {
   /*
    * Provider'dan umumiy ma'lumotlarni olamiz.
    *
-   * Bu ma'lumotlar UserDataProvider ichida bir marta yuklanadi.
+   * Bu ma'lumotlar UserDataProvider ichida yuklanadi.
+   * Route o'zgarganda qayta fetch qilinmaydi.
    */
+
   const {
     user,
     profile,
     profileLoading,
     unread,
-    loadNotifications,
-    updateProfile,
   } = useUserData();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -87,10 +89,8 @@ function UserLayoutContent({ children }) {
    * =========================================================
    * AUTH REDIRECT
    * =========================================================
-   *
-   * UserDataProvider userni tekshiradi.
-   * Agar user bo'lmasa login sahifasiga yuboramiz.
    */
+
   useEffect(() => {
     if (profileLoading) return;
 
@@ -98,84 +98,6 @@ function UserLayoutContent({ children }) {
       router.replace("/login");
     }
   }, [user, profileLoading, router]);
-
-  /*
-   * =========================================================
-   * NOTIFICATION EVENT
-   * =========================================================
-   *
-   * Eski Notifications sahifasi:
-   * window.dispatchEvent(
-   *   new CustomEvent("greenedu:notifications-read", ...)
-   * )
-   *
-   * qilsa, layout provider orqali notificationlarni
-   * qayta sinxronlashtiradi.
-   */
-  useEffect(() => {
-    const onRead = async () => {
-      /*
-       * Notificationlar hali yuklanmagan bo'lsa,
-       * bu chaqiriq hech narsa qilmaydi.
-       *
-       * Agar yuklangan bo'lsa, yangilangan ma'lumotni
-       * Supabase'dan olib keladi.
-       */
-      await loadNotifications(true);
-    };
-
-    window.addEventListener(
-      "greenedu:notifications-read",
-      onRead
-    );
-
-    return () => {
-      window.removeEventListener(
-        "greenedu:notifications-read",
-        onRead
-      );
-    };
-  }, [loadNotifications]);
-
-  /*
-   * =========================================================
-   * PROFILE EVENT
-   * =========================================================
-   *
-   * Settings sahifasi profilni o'zgartirganda,
-   * provider'dagi profile ham yangilanadi.
-   */
-  useEffect(() => {
-    const onProfileUpdate = (event) => {
-      const detail = event.detail || {};
-
-      const patch = {};
-
-      if (detail.fullName !== undefined) {
-        patch.full_name = detail.fullName;
-      }
-
-      if (detail.avatarUrl !== undefined) {
-        patch.avatar_url = detail.avatarUrl;
-      }
-
-      if (Object.keys(patch).length > 0) {
-        updateProfile(patch);
-      }
-    };
-
-    window.addEventListener(
-      "greenedu:profile-updated",
-      onProfileUpdate
-    );
-
-    return () => {
-      window.removeEventListener(
-        "greenedu:profile-updated",
-        onProfileUpdate
-      );
-    };
-  }, [updateProfile]);
 
   /*
    * =========================================================
@@ -209,10 +131,7 @@ function UserLayoutContent({ children }) {
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener(
-        "keydown",
-        handleKeyDown
-      );
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [sidebarOpen]);
 
@@ -288,11 +207,12 @@ function UserLayoutContent({ children }) {
 
   /*
    * =========================================================
-   * LOADING
+   * INITIAL LOADING
    * =========================================================
    *
    * Faqat birinchi user/profile yuklanishida ishlaydi.
-   * Route almashganda qayta loading qilmaydi.
+   *
+   * Route almashganda bu layout qayta yaratilmaydi.
    */
 
   const initialLoading = profileLoading && !user;
@@ -301,9 +221,6 @@ function UserLayoutContent({ children }) {
    * =========================================================
    * AUTH CHECK
    * =========================================================
-   *
-   * Login redirect ishlayotgan paytda eski UI ko'rinib
-   * qolmasligi uchun kichik loading holati.
    */
 
   if (initialLoading) {
@@ -333,6 +250,7 @@ function UserLayoutContent({ children }) {
   /*
    * User yo'q bo'lsa redirect kutilmoqda.
    */
+
   if (!user) {
     return null;
   }
@@ -345,6 +263,7 @@ function UserLayoutContent({ children }) {
 
   return (
     <div className="shell">
+
       {/* =====================================================
           MOBILE OVERLAY
           ===================================================== */}
@@ -370,6 +289,7 @@ function UserLayoutContent({ children }) {
         }`}
         aria-label="Foydalanuvchi menyusi"
       >
+
         {/* ===================================================
             BRAND
             =================================================== */}
@@ -407,6 +327,7 @@ function UserLayoutContent({ children }) {
           aria-label="Asosiy menyu"
         >
           <div className="nav-main">
+
             {NAV.map((item) => {
               const active = item.exact
                 ? pathname === item.href
@@ -448,36 +369,8 @@ function UserLayoutContent({ children }) {
                 </Link>
               );
             })}
+
           </div>
-
-          {/* =================================================
-              LOGOUT
-              ================================================= */}
-
-          <button
-            type="button"
-            className="nav-link nav-logout"
-            onClick={handleLogout}
-            disabled={loggingOut}
-            aria-label={
-              loggingOut
-                ? "Hisobdan chiqilmoqda"
-                : "Hisobdan chiqish"
-            }
-          >
-            <span
-              className="nav-icon"
-              aria-hidden="true"
-            >
-              <LogoutIcon />
-            </span>
-
-            <span className="nav-label">
-              {loggingOut
-                ? "Chiqilmoqda..."
-                : "Hisobdan chiqish"}
-            </span>
-          </button>
         </nav>
 
         {/* ===================================================
@@ -485,6 +378,7 @@ function UserLayoutContent({ children }) {
             =================================================== */}
 
         <div className="sidebar-footer">
+
           <Link
             href="/user/settings"
             className="sidebar-user"
@@ -532,6 +426,7 @@ function UserLayoutContent({ children }) {
           >
             <LogoutIcon />
           </button>
+
         </div>
       </aside>
 
@@ -540,11 +435,13 @@ function UserLayoutContent({ children }) {
           ===================================================== */}
 
       <div className="shell-main">
+
         {/* ===================================================
             TOPBAR
             =================================================== */}
 
         <header className="topbar">
+
           <button
             type="button"
             className="iconbtn menu-btn"
@@ -576,6 +473,7 @@ function UserLayoutContent({ children }) {
               🌱
             </span>
           </div>
+
         </header>
 
         {/* ===================================================
@@ -589,6 +487,7 @@ function UserLayoutContent({ children }) {
         >
           {children}
         </main>
+
       </div>
     </div>
   );
