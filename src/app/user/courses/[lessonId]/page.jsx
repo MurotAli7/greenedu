@@ -7,23 +7,24 @@ import {
   useRef,
   useState,
 } from "react";
-
 import Link from "next/link";
 import Script from "next/script";
 
 import { DownloadIcon } from "@/components/Icons";
 import { SkeletonPageHead } from "@/components/Skeleton";
-
 import { apiFetch } from "@/lib/api/client";
 import {
   invalidateCache,
   useCachedApi,
 } from "@/lib/api/useCached";
-
 import { TEST_RESULT_MESSAGE } from "@/lib/constants";
 
 export default function LessonPage({ params }) {
   const { id, lessonId } = use(params);
+
+  // ---------------------------------------------------------
+  // STATE
+  // ---------------------------------------------------------
 
   const [course, setCourse] = useState(null);
   const [lesson, setLesson] = useState(null);
@@ -40,130 +41,193 @@ export default function LessonPage({ params }) {
   const [testMsg, setTestMsg] = useState(null);
 
   const [cameraMessage, setCameraMessage] = useState("");
+
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isEmbedded, setIsEmbedded] = useState(false);
 
-  const viewerRef = useRef(null);
+  // ---------------------------------------------------------
+  // SEPARATE REFS
+  // ---------------------------------------------------------
 
-  /*
-   * Kurs ma'lumotlarini cache orqali olamiz.
-   *
-   * Kurs sahifasidan darsga o'tilganda qayta API
-   * so'rovi yuborilmaydi, agar ma'lumot cache'da bo'lsa.
-   */
+  const modelViewerRef = useRef(null);
+  const embedViewerRef = useRef(null);
+
+  // ---------------------------------------------------------
+  // COURSE CACHE
+  // ---------------------------------------------------------
+
   const {
     data: courseData,
     loading: courseLoading,
     mutate,
-  } = useCachedApi(`/api/user/course?id=${id}`);
+  } = useCachedApi(
+    `/api/user/course?id=${encodeURIComponent(id)}`
+  );
 
-  /*
-   * Kurs ma'lumotlari kelganda kerakli darsni topamiz.
-   */
+  // ---------------------------------------------------------
+  // LOADING
+  // ---------------------------------------------------------
+
   useEffect(() => {
     setLoading(courseLoading);
+  }, [courseLoading]);
 
+  // ---------------------------------------------------------
+  // EMBEDDED PAGE DETECTION
+  // ---------------------------------------------------------
+
+  useEffect(() => {
+    try {
+      setIsEmbedded(window.top !== window.self);
+    } catch {
+      setIsEmbedded(true);
+    }
+  }, []);
+
+  // ---------------------------------------------------------
+  // COURSE DATA
+  // ---------------------------------------------------------
+
+  useEffect(() => {
     if (!courseData) return;
 
-    const nextLessons = courseData.lessons || [];
+    const nextLessons = Array.isArray(courseData.lessons)
+      ? courseData.lessons
+      : [];
 
-    const selectedLesson = nextLessons.find(
+    const selected = nextLessons.find(
       (item) =>
         String(item.id) === String(lessonId)
     );
 
     setCourse(courseData.course || null);
     setLessons(nextLessons);
-    setLesson(selectedLesson || null);
+    setLesson(selected || null);
 
     setEnrolled(Boolean(courseData.enrolled));
 
     setDone(
-      new Set(courseData.doneLessonIds || [])
+      new Set(
+        Array.isArray(courseData.doneLessonIds)
+          ? courseData.doneLessonIds
+          : []
+      )
     );
 
     setLoading(false);
-  }, [courseData, courseLoading, lessonId]);
+  }, [courseData, lessonId]);
 
-  /*
-   * Darsni tugatish
-   */
-  const handleComplete = useCallback(
-    async () => {
-      if (!lesson || busy) return;
+  // ---------------------------------------------------------
+  // OPEN CURRENT PAGE IN STANDALONE WINDOW
+  // ---------------------------------------------------------
 
-      setBusy(true);
-      setError("");
+  const openStandalone = useCallback(() => {
+    try {
+      const newWindow = window.open(
+        window.location.href,
+        "_blank",
+        "noopener,noreferrer"
+      );
 
-      try {
-        const json = await apiFetch(
-          "/api/user/complete-lesson",
-          {
-            method: "POST",
-            body: {
-              lessonId: lesson.id,
-            },
-          }
+      if (!newWindow) {
+        setCameraMessage(
+          "Brauzer yangi oynani blokladi. Brauzer sozlamalaridan popup oynalarga ruxsat bering."
         );
-
-        setDone(
-          (previous) =>
-            new Set([
-              ...previous,
-              lesson.id,
-            ])
-        );
-
-        mutate((previous) => {
-          if (
-            !previous ||
-            previous.doneLessonIds?.includes(
-              lesson.id
-            )
-          ) {
-            return previous;
-          }
-
-          return {
-            ...previous,
-            doneLessonIds: [
-              ...(previous.doneLessonIds || []),
-              lesson.id,
-            ],
-          };
-        });
-
-        /*
-         * Dashboard cache'larini yangilash.
-         */
-        invalidateCache(
-          "/api/user/dashboard"
-        );
-
-        if (!json.already) {
-          setReward({
-            xp: json.xpEarned,
-            leveledUp: json.leveledUp,
-            newLevel: json.newLevel,
-            badges: json.newBadges || [],
-          });
-        }
-      } catch (err) {
-        setError(
-          err?.message ||
-            "Darsni yakunlashda xatolik yuz berdi."
-        );
-      } finally {
-        setBusy(false);
       }
-    },
-    [lesson, busy, mutate]
-  );
+    } catch (err) {
+      console.error(
+        "Standalone window error:",
+        err
+      );
 
-  /*
-   * Test natijasini qabul qilish.
-   */
+      setCameraMessage(
+        "Sahifani alohida oynada ochib bo‘lmadi."
+      );
+    }
+  }, []);
+
+  // ---------------------------------------------------------
+  // COMPLETE LESSON
+  // ---------------------------------------------------------
+
+  const handleComplete = useCallback(async () => {
+    if (!lesson || busy) return;
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const json = await apiFetch(
+        "/api/user/complete-lesson",
+        {
+          method: "POST",
+          body: {
+            lessonId: lesson.id,
+          },
+        }
+      );
+
+      setDone((prev) => {
+        const next = new Set(prev);
+        next.add(lesson.id);
+        return next;
+      });
+
+      mutate((prev) => {
+        if (!prev) return prev;
+
+        const previousDone =
+          Array.isArray(prev.doneLessonIds)
+            ? prev.doneLessonIds
+            : [];
+
+        if (
+          previousDone.some(
+            (item) =>
+              String(item) === String(lesson.id)
+          )
+        ) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          doneLessonIds: [
+            ...previousDone,
+            lesson.id,
+          ],
+        };
+      });
+
+      // Dashboard cache invalidation
+      invalidateCache(
+        "/api/user/dashboard"
+      );
+
+      if (!json.already) {
+        setReward({
+          xp: json.xpEarned,
+          leveledUp: json.leveledUp,
+          newLevel: json.newLevel,
+          badges: json.newBadges || [],
+        });
+      }
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Darsni yakunlashda xatolik yuz berdi."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [lesson, busy, mutate]);
+
+  // ---------------------------------------------------------
+  // TEST RESULT MESSAGE
+  // ---------------------------------------------------------
+
   useEffect(() => {
-    const handleMessage = async (event) => {
+    const onMessage = async (event) => {
       const payload = event.data;
 
       if (
@@ -185,14 +249,8 @@ export default function LessonPage({ params }) {
         return;
       }
 
-      /*
-       * Xavfsizlik:
-       * faqat test joylashgan origin'dan kelgan
-       * xabarni qabul qilamiz.
-       */
-      if (
-        event.origin !== expectedOrigin
-      ) {
+      // Security check
+      if (event.origin !== expectedOrigin) {
         return;
       }
 
@@ -211,15 +269,9 @@ export default function LessonPage({ params }) {
 
         setTestMsg({
           lessonId: lesson.id,
-          text:
-            `Test natijangiz saqlandi: ` +
-            `${payload.score}/${payload.total} ` +
-            `(${result.percent}%)`,
+          text: `Test natijangiz saqlandi: ${payload.score}/${payload.total} (${result.percent}%)`,
         });
 
-        /*
-         * Test topshirilsa dars avtomatik tugaydi.
-         */
         if (!done.has(lesson.id)) {
           await handleComplete();
         }
@@ -235,13 +287,13 @@ export default function LessonPage({ params }) {
 
     window.addEventListener(
       "message",
-      handleMessage
+      onMessage
     );
 
     return () => {
       window.removeEventListener(
         "message",
-        handleMessage
+        onMessage
       );
     };
   }, [
@@ -250,12 +302,13 @@ export default function LessonPage({ params }) {
     handleComplete,
   ]);
 
-  /*
-   * FULLSCREEN
-   */
+  // ---------------------------------------------------------
+  // FULLSCREEN
+  // ---------------------------------------------------------
+
   const enterFullscreen = useCallback(
-    async () => {
-      const element = viewerRef.current;
+    async (targetRef) => {
+      const element = targetRef?.current;
 
       if (!element) {
         setCameraMessage(
@@ -264,81 +317,126 @@ export default function LessonPage({ params }) {
         return;
       }
 
+      if (
+        !document.fullscreenEnabled
+      ) {
+        setCameraMessage(
+          "Bu brauzer to‘liq ekran rejimini qo‘llab-quvvatlamaydi."
+        );
+        return;
+      }
+
       try {
-        if (!document.fullscreenElement) {
-          await element.requestFullscreen({
-            navigationUI: "hide",
-          });
-        }
+        await element.requestFullscreen({
+          navigationUI: "hide",
+        });
+
+        setCameraMessage("");
       } catch (err) {
         console.error(
-          "Fullscreen xatosi:",
+          "Fullscreen error:",
           err
         );
 
         setCameraMessage(
-          "To‘liq ekran rejimini ochib bo‘lmadi."
+          "To‘liq ekran ochilmadi. Agar sahifa boshqa sayt ichida ochilgan bo‘lsa, uni alohida oynada oching."
         );
       }
     },
     []
   );
 
-  const exitFullscreen = useCallback(
-    async () => {
+  const exitFullscreen =
+    useCallback(async () => {
       try {
         if (document.fullscreenElement) {
           await document.exitFullscreen();
         }
       } catch (err) {
         console.error(
-          "Fullscreen xatosi:",
+          "Exit fullscreen error:",
           err
         );
       }
-    },
-    []
-  );
+    }, []);
 
-  /*
-   * Browser fullscreen holatini kuzatamiz.
-   */
+  // ---------------------------------------------------------
+  // FULLSCREEN EVENT
+  // ---------------------------------------------------------
+
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(
-        Boolean(document.fullscreenElement)
-      );
-    };
+    const onFullscreenChange =
+      () => {
+        setIsFullscreen(
+          Boolean(
+            document.fullscreenElement
+          )
+        );
+      };
 
     document.addEventListener(
       "fullscreenchange",
-      handleFullscreenChange
+      onFullscreenChange
     );
 
     return () => {
       document.removeEventListener(
         "fullscreenchange",
-        handleFullscreenChange
+        onFullscreenChange
       );
     };
   }, []);
 
-  /*
-   * Kamera ruxsatini so'rash.
-   *
-   * Muhim:
-   * JavaScript kameraga avtomatik ruxsat bera olmaydi.
-   * Faqat browser permission oynasini chiqarishi mumkin.
-   */
+  // ---------------------------------------------------------
+  // ESCAPE / FULLSCREEN CLEANUP
+  // ---------------------------------------------------------
+
+  useEffect(() => {
+    return () => {
+      if (document.fullscreenElement) {
+        document
+          .exitFullscreen()
+          .catch(() => {});
+      }
+    };
+  }, []);
+
+  // ---------------------------------------------------------
+  // CAMERA PERMISSION
+  // ---------------------------------------------------------
+
   const requestCameraPermission =
     useCallback(async () => {
       setCameraMessage("");
 
+      // If GreenEdu itself is inside another iframe
       if (
-        !navigator.mediaDevices?.getUserMedia
+        window.top !== window.self
       ) {
         setCameraMessage(
-          "Bu qurilmada kamera API qo‘llab-quvvatlanmaydi."
+          "AR/VR ishlashi uchun ushbu darsni alohida oynada oching."
+        );
+
+        return false;
+      }
+
+      // HTTPS check
+      if (!window.isSecureContext) {
+        setCameraMessage(
+          "Kamera va AR ishlashi uchun sayt HTTPS orqali ochilishi kerak."
+        );
+
+        return false;
+      }
+
+      // Browser support
+      if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices
+          .getUserMedia
+      ) {
+        setCameraMessage(
+          "Bu brauzer kamera API'sini qo‘llab-quvvatlamaydi."
         );
 
         return false;
@@ -350,41 +448,68 @@ export default function LessonPage({ params }) {
             {
               video: {
                 facingMode: {
-                  ideal: "environment",
+                  ideal:
+                    "environment",
                 },
               },
               audio: false,
             }
           );
 
-        /*
-         * Faqat permission tekshirdik.
-         * Kamera oqimini ushlab turmaymiz.
-         */
+        // Permission olindi.
+        // Kamerani ushlab turmaymiz.
         stream
           .getTracks()
-          .forEach((track) => {
-            track.stop();
-          });
+          .forEach((track) =>
+            track.stop()
+          );
+
+        setCameraMessage(
+          "✓ Kameraga ruxsat berildi. Endi AR tugmasidan foydalanishingiz mumkin."
+        );
 
         return true;
       } catch (err) {
         console.error(
-          "Kamera ruxsati:",
+          "Camera permission error:",
           err
         );
 
-        setCameraMessage(
-          "AR ishlashi uchun brauzerda kameraga ruxsat bering."
-        );
+        if (
+          err?.name ===
+          "NotAllowedError"
+        ) {
+          setCameraMessage(
+            "Kameraga ruxsat berilmadi. Brauzer sozlamalaridan ushbu sayt uchun kameraga ruxsat bering."
+          );
+        } else if (
+          err?.name ===
+          "NotFoundError"
+        ) {
+          setCameraMessage(
+            "Qurilmada kamera topilmadi."
+          );
+        } else if (
+          err?.name ===
+          "NotReadableError"
+        ) {
+          setCameraMessage(
+            "Kamera boshqa dastur tomonidan ishlatilmoqda."
+          );
+        } else {
+          setCameraMessage(
+            "Kameradan foydalanib bo‘lmadi. Brauzer ruxsatlarini tekshiring."
+          );
+        }
 
         return false;
       }
     }, []);
 
-  /*
-   * Loading
-   */
+  // ---------------------------------------------------------
+  // LOADING
+  // ---------------------------------------------------------
+
   if (loading) {
     return (
       <main className="course-page lesson-page">
@@ -393,9 +518,10 @@ export default function LessonPage({ params }) {
     );
   }
 
-  /*
-   * Dars topilmasa
-   */
+  // ---------------------------------------------------------
+  // NOT FOUND
+  // ---------------------------------------------------------
+
   if (!course || !lesson) {
     return (
       <main className="course-page">
@@ -422,9 +548,10 @@ export default function LessonPage({ params }) {
     );
   }
 
-  /*
-   * Kursga yozilmagan bo'lsa
-   */
+  // ---------------------------------------------------------
+  // NOT ENROLLED
+  // ---------------------------------------------------------
+
   if (!enrolled) {
     return (
       <main className="course-page">
@@ -451,9 +578,10 @@ export default function LessonPage({ params }) {
     );
   }
 
-  /*
-   * Oldingi / keyingi dars
-   */
+  // ---------------------------------------------------------
+  // LESSON NAVIGATION
+  // ---------------------------------------------------------
+
   const selectedIndex =
     lessons.findIndex(
       (item) =>
@@ -477,26 +605,24 @@ export default function LessonPage({ params }) {
     lesson.id
   );
 
-  const hasModel =
-    Boolean(lesson.model_url);
+  const hasModel = Boolean(
+    lesson.model_url
+  );
 
-  /*
-   * AR / VR / PhET mavjudligini aniqlaymiz.
-   */
-  const isVR =
-    lesson.lesson_type === "vr";
+  const hasEmbed = Boolean(
+    lesson.embed_url
+  );
 
-  const isAR =
-    lesson.lesson_type === "ar";
-
-  const hasEmbed =
-    Boolean(lesson.embed_url);
-
-  const hasTest =
-    Boolean(lesson.test_url);
+  const hasTest = Boolean(
+    lesson.test_url
+  );
 
   return (
     <>
+      {/* =====================================================
+          MODEL VIEWER
+      ===================================================== */}
+
       {hasModel && (
         <Script
           type="module"
@@ -507,9 +633,9 @@ export default function LessonPage({ params }) {
 
       <main className="course-page lesson-page">
 
-        {/* =====================================================
+        {/* ===================================================
             BREADCRUMB
-        ===================================================== */}
+        =================================================== */}
 
         <nav
           className="course-breadcrumb"
@@ -530,46 +656,81 @@ export default function LessonPage({ params }) {
           </span>
         </nav>
 
+        {/* ===================================================
+            EMBED WARNING
+        =================================================== */}
 
-        {/* =====================================================
-            LESSON HEADER
-        ===================================================== */}
+        {isEmbedded && (
+          <div
+            className="course-alert course-alert-warning"
+            role="alert"
+          >
+            <span>📷</span>
+
+            <div>
+              <strong>
+                AR/VR uchun alohida oyna kerak
+              </strong>
+
+              <p>
+                Kamera, AR, VR va to‘liq
+                ekran funksiyalari sahifa
+                boshqa sayt ichida ochilganda
+                cheklanishi mumkin.
+              </p>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={
+                  openStandalone
+                }
+              >
+                ↗ Alohida oynada ochish
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===================================================
+            HERO
+        =================================================== */}
 
         <section className="course-hero">
-
           <div className="course-hero-main">
 
             <div className="course-label-row">
 
               <span
                 className={`course-type ${
-                  isVR
+                  lesson.lesson_type ===
+                  "vr"
                     ? "course-type-vr"
-                    : isAR
+                    : lesson.lesson_type ===
+                      "ar"
                     ? "course-type-ar"
                     : "course-type-course"
                 }`}
               >
-                {isVR
+                {lesson.lesson_type ===
+                "vr"
                   ? "VR DARS"
-                  : isAR
+                  : lesson.lesson_type ===
+                    "ar"
                   ? "AR / 3D DARS"
                   : "DARS"}
               </span>
 
-              {course.category && (
-                <span className="course-category">
-                  {course.category}
-                </span>
-              )}
+              <span className="course-category">
+                {selectedIndex + 1} /{" "}
+                {lessons.length}
+              </span>
 
             </div>
-
 
             <h1 className="course-hero-title">
               {lesson.title}
             </h1>
-
 
             {lesson.summary && (
               <p className="course-hero-description">
@@ -577,35 +738,24 @@ export default function LessonPage({ params }) {
               </p>
             )}
 
-
             <div className="course-hero-meta">
-
-              <span>
-                📚 {selectedIndex + 1} /
-                {" "}
-                {lessons.length} dars
-              </span>
-
               <span>
                 ⚡ +{lesson.xp_reward} XP
               </span>
 
               {isDone && (
                 <span className="course-enrolled-meta">
-                  ✓ Tugatilgan
+                  ✓ Dars tugatilgan
                 </span>
               )}
-
             </div>
 
           </div>
-
         </section>
 
-
-        {/* =====================================================
+        {/* ===================================================
             ERROR
-        ===================================================== */}
+        =================================================== */}
 
         {error && (
           <div
@@ -618,10 +768,9 @@ export default function LessonPage({ params }) {
           </div>
         )}
 
-
-        {/* =====================================================
+        {/* ===================================================
             REWARD
-        ===================================================== */}
+        =================================================== */}
 
         {reward && (
           <div
@@ -633,23 +782,21 @@ export default function LessonPage({ params }) {
             </span>
 
             <div>
-
               <strong>
                 +{reward.xp} XP qo‘shildi!
               </strong>
 
               {reward.leveledUp && (
                 <p>
-                  🎉 Yangi daraja:
-                  {" "}
+                  🎉 Yangi daraja:{" "}
                   {reward.newLevel}
                 </p>
               )}
 
-              {reward.badges?.length > 0 && (
+              {reward.badges?.length >
+                0 && (
                 <p>
-                  🏆 Yangi nishon:
-                  {" "}
+                  🏆 Yangi nishon:{" "}
                   {reward.badges
                     .map(
                       (badge) =>
@@ -658,91 +805,30 @@ export default function LessonPage({ params }) {
                     .join(", ")}
                 </p>
               )}
-
             </div>
           </div>
         )}
 
+        {/* ===================================================
+            LESSON CONTENT
+        =================================================== */}
 
-        {/* =====================================================
-            LESSON NAVIGATION
-        ===================================================== */}
+        <section className="lesson-inline-content lesson-standalone-content">
 
-        <section className="lesson-navigation">
-
-          <div>
-
-            {previousLesson ? (
-              <Link
-                href={
-                  `/user/course/${id}` +
-                  `/lesson/${previousLesson.id}`
-                }
-                className="btn btn-ghost"
-              >
-                ← Oldingi dars
-              </Link>
-            ) : (
-              <span />
-            )}
-
-          </div>
-
-
-          <div className="lesson-navigation-center">
-            <span>
-              Dars {selectedIndex + 1}
-              {" / "}
-              {lessons.length}
-            </span>
-          </div>
-
-
-          <div>
-
-            {nextLesson ? (
-              <Link
-                href={
-                  `/user/course/${id}` +
-                  `/lesson/${nextLesson.id}`
-                }
-                className="btn btn-primary"
-              >
-                Keyingi dars →
-              </Link>
-            ) : (
-              <span />
-            )}
-
-          </div>
-
-        </section>
-
-
-        {/* =====================================================
-            ASOSIY DARSLIK
-        ===================================================== */}
-
-        <section className="lesson-page-content">
-
-
-          {/* ===================================================
-              NAZARIYA
-          =================================================== */}
+          {/* =================================================
+              TEXT
+          ================================================= */}
 
           {lesson.content && (
             <section className="lesson-inline-block">
 
               <div className="lesson-inline-heading">
-
                 <span>📖</span>
 
-                <h2>
-                  Nazariya
-                </h2>
-
+                <h4>
+                  Ma’ruza matni
+                </h4>
               </div>
-
 
               <div className="lesson-text">
                 {lesson.content}
@@ -751,240 +837,114 @@ export default function LessonPage({ params }) {
             </section>
           )}
 
-
-          {/* ===================================================
-              PHET / INTERAKTIV MODUL
-          =================================================== */}
-
-          {hasEmbed && (
-            <section
-              className="lesson-inline-block"
-              ref={
-                viewerRef
-              }
-            >
-
-              <div className="lesson-inline-heading">
-
-                <span>
-                  {isVR
-                    ? "🥽"
-                    : "🎮"}
-                </span>
-
-                <div>
-
-                  <h2>
-                    {isVR
-                      ? "VR tajriba"
-                      : "Interaktiv simulyatsiya"}
-                  </h2>
-
-                  <p>
-                    Ushbu darsga tegishli
-                    interaktiv material
-                  </p>
-
-                </div>
-
-              </div>
-
-
-              {/* Viewer controls */}
-
-              <div className="lesson-viewer-toolbar">
-
-                {!isFullscreen ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={
-                      enterFullscreen
-                    }
-                  >
-                    ⛶ To‘liq ekran
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={
-                      exitFullscreen
-                    }
-                  >
-                    ✕ To‘liq ekrandan chiqish
-                  </button>
-                )}
-
-              </div>
-
-
-              <div
-                className={
-                  `interactive-viewer ${
-                    isFullscreen
-                      ? "interactive-viewer-fullscreen"
-                      : ""
-                  }`
-                }
-              >
-
-                <iframe
-                  title={
-                    lesson.title
-                  }
-
-                  src={
-                    lesson.embed_url
-                  }
-
-                  allow={
-                    "autoplay; " +
-                    "fullscreen; " +
-                    "xr-spatial-tracking; " +
-                    "accelerometer; " +
-                    "gyroscope; " +
-                    "camera; " +
-                    "microphone"
-                  }
-
-                  allowFullScreen
-
-                  loading="lazy"
-
-                  style={{
-                    width: "100%",
-                    height:
-                      isFullscreen
-                        ? "100vh"
-                        : "650px",
-                    border: "0",
-                  }}
-                />
-
-              </div>
-
-
-              {cameraMessage && (
-                <div
-                  className="course-alert course-alert-error"
-                  role="alert"
-                >
-                  <span>📷</span>
-                  <p>
-                    {cameraMessage}
-                  </p>
-                </div>
-              )}
-
-
-              {/* AR camera permission */}
-
-              {isAR && (
-                <div className="lesson-ar-actions">
-
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={
-                      requestCameraPermission
-                    }
-                  >
-                    📷 Kamerani tekshirish
-                  </button>
-
-                  <p className="viewer-help">
-                    AR ishlashi uchun
-                    brauzer kameraga ruxsat
-                    so‘rashi mumkin.
-                  </p>
-
-                </div>
-              )}
-
-
-              {isVR && (
-                <p className="viewer-help">
-                  🥽 VR ko‘zoynakda ko‘rish
-                  uchun avval to‘liq ekran
-                  rejimini oching va
-                  simulyatsiya ichidagi
-                  VR rejimini tanlang.
-                </p>
-              )}
-
-            </section>
-          )}
-
-
-          {/* ===================================================
-              3D MODEL / AR
-          =================================================== */}
+          {/* =================================================
+              MODEL VIEWER / AR
+          ================================================= */}
 
           {hasModel && (
             <section className="lesson-inline-block">
 
               <div className="lesson-inline-heading">
-
                 <span>🧊</span>
 
-                <div>
-
-                  <h2>
-                    3D model va AR
-                  </h2>
-
-                  <p>
-                    Modelni aylantiring va
-                    AR rejimida ko‘ring.
-                  </p>
-
-                </div>
-
+                <h4>
+                  3D model va AR
+                </h4>
               </div>
 
-
               <div
-                className="model-viewer-container"
-                ref={viewerRef}
+                ref={modelViewerRef}
+                className={`model-viewer-container ${
+                  isFullscreen
+                    ? "is-fullscreen"
+                    : ""
+                }`}
+                style={
+                  isFullscreen
+                    ? {
+                        position:
+                          "fixed",
+                        inset: 0,
+                        zIndex: 99999,
+                        width: "100vw",
+                        height: "100vh",
+                        background:
+                          "#eef4ee",
+                      }
+                    : undefined
+                }
               >
 
                 <model-viewer
-                  src={
-                    lesson.model_url
-                  }
-
+                  src={lesson.model_url}
                   camera-controls
-
                   auto-rotate
-
                   ar
-
-                  ar-modes={
-                    "webxr scene-viewer quick-look"
-                  }
-
+                  ar-modes="webxr scene-viewer quick-look"
                   shadow-intensity="1"
-
                   exposure="1"
-
+                  crossorigin="anonymous"
                   style={{
                     width: "100%",
-                    height: "480px",
+                    height:
+                      isFullscreen
+                        ? "100vh"
+                        : 480,
                     background:
                       "#eef4ee",
-                    borderRadius: "16px",
+                    borderRadius:
+                      isFullscreen
+                        ? 0
+                        : 16,
                   }}
                 />
 
+                <div className="lesson-viewer-actions">
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={
+                      requestCameraPermission
+                    }
+                  >
+                    📷 AR uchun kameraga
+                    ruxsat
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() =>
+                      isFullscreen
+                        ? exitFullscreen()
+                        : enterFullscreen(
+                            modelViewerRef
+                          )
+                    }
+                  >
+                    {isFullscreen
+                      ? "✕ To‘liq ekrandan chiqish"
+                      : "⛶ To‘liq ekran"}
+                  </button>
+
+                </div>
               </div>
 
+              {cameraMessage && (
+                <p
+                  className="viewer-help"
+                  role="status"
+                >
+                  {cameraMessage}
+                </p>
+              )}
 
               <p className="viewer-help">
                 Modelni barmoq yoki
-                sichqoncha bilan aylantiring.
-                Telefoningiz AR'ni
-                qo‘llab-quvvatlasa,
+                sichqoncha bilan
+                aylantiring. Telefoningiz
+                AR'ni qo‘llab-quvvatlasa,
                 modelni haqiqiy muhitda
                 ko‘rishingiz mumkin.
               </p>
@@ -992,10 +952,165 @@ export default function LessonPage({ params }) {
             </section>
           )}
 
+          {/* =================================================
+              VR / EMBED
+          ================================================= */}
 
-          {/* ===================================================
+          {hasEmbed && (
+            <section className="lesson-inline-block">
+
+              <div className="lesson-inline-heading">
+
+                <span>
+                  {lesson.lesson_type ===
+                  "vr"
+                    ? "🥽"
+                    : "🎮"}
+                </span>
+
+                <h4>
+                  {lesson.lesson_type ===
+                  "vr"
+                    ? "VR muhit"
+                    : "Interaktiv simulyatsiya"}
+                </h4>
+
+              </div>
+
+              <div
+                ref={embedViewerRef}
+                className={`interactive-viewer ${
+                  isFullscreen &&
+                  !hasModel
+                    ? "is-fullscreen"
+                    : ""
+                }`}
+                style={
+                  isFullscreen &&
+                  !hasModel
+                    ? {
+                        position:
+                          "fixed",
+                        inset: 0,
+                        zIndex: 99999,
+                        width: "100vw",
+                        height: "100vh",
+                        background:
+                          "#fff",
+                      }
+                    : undefined
+                }
+              >
+
+                <iframe
+                  title={lesson.title}
+                  src={lesson.embed_url}
+                  allow="
+                    autoplay;
+                    fullscreen *;
+                    xr-spatial-tracking *;
+                    camera *;
+                    microphone *;
+                    accelerometer;
+                    gyroscope;
+                    gamepad;
+                    web-share
+                  "
+                  allowFullScreen
+                  loading="eager"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  style={{
+                    width: "100%",
+                    height:
+                      isFullscreen
+                        ? "100vh"
+                        : 600,
+                    border: 0,
+                  }}
+                />
+
+                <div className="lesson-viewer-actions">
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() =>
+                      isFullscreen
+                        ? exitFullscreen()
+                        : enterFullscreen(
+                            embedViewerRef
+                          )
+                    }
+                  >
+                    {isFullscreen
+                      ? "✕ To‘liq ekrandan chiqish"
+                      : "⛶ To‘liq ekran"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={
+                      openStandalone
+                    }
+                  >
+                    ↗ Alohida oynada
+                  </button>
+
+                </div>
+
+              </div>
+
+              {lesson.lesson_type ===
+                "vr" && (
+                <p className="viewer-help">
+                  VR ko‘zoynakda ko‘rish
+                  uchun avval interaktiv
+                  muhitni oching, keyin
+                  VR qurilmangizdagi VR
+                  rejimini tanlang.
+                </p>
+              )}
+
+            </section>
+          )}
+
+          {/* =================================================
+              CAMERA HELP
+          ================================================= */}
+
+          {(hasModel || hasEmbed) &&
+            cameraMessage && (
+              <div
+                className="course-alert course-alert-warning"
+                role="status"
+              >
+                <span>📷</span>
+
+                <div>
+                  <p>
+                    {cameraMessage}
+                  </p>
+
+                  {isEmbedded && (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={
+                        openStandalone
+                      }
+                    >
+                      ↗ Alohida oynada
+                      ochish
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+          {/* =================================================
               TEST
-          =================================================== */}
+          ================================================= */}
 
           {hasTest && (
             <section className="lesson-inline-block">
@@ -1003,20 +1118,15 @@ export default function LessonPage({ params }) {
               <div className="lesson-test-heading">
 
                 <div className="lesson-inline-heading">
-
                   <span>✏️</span>
 
-                  <h2>
+                  <h4>
                     Mavzu bo‘yicha test
-                  </h2>
-
+                  </h4>
                 </div>
 
-
                 <a
-                  href={
-                    lesson.test_url
-                  }
+                  href={lesson.test_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-ghost btn-sm"
@@ -1027,32 +1137,20 @@ export default function LessonPage({ params }) {
 
               </div>
 
-
               <div className="test-viewer">
 
                 <iframe
-                  title={
-                    `${lesson.title} — test`
-                  }
-
-                  src={
-                    lesson.test_url
-                  }
-
-                  loading="lazy"
-
-                  style={{
-                    width: "100%",
-                    minHeight:
-                      "600px",
-                    border: "0",
-                  }}
+                  title={`${lesson.title} — test`}
+                  src={lesson.test_url}
+                  loading="eager"
+                  allow="fullscreen"
+                  allowFullScreen
                 />
 
               </div>
 
-
-              {testMsg && (
+              {testMsg?.lessonId ===
+                lesson.id && (
                 <p
                   className="form-ok lesson-test-message"
                   role="status"
@@ -1064,16 +1162,14 @@ export default function LessonPage({ params }) {
             </section>
           )}
 
+          {/* =================================================
+              COMPLETE
+          ================================================= */}
 
-          {/* ===================================================
-              DARSNI TUGATISH
-          =================================================== */}
-
-          <section className="lesson-complete-bar">
+          <div className="lesson-complete-bar">
 
             {!isDone ? (
               <>
-
                 <button
                   type="button"
                   className="btn btn-primary btn-lg"
@@ -1087,7 +1183,6 @@ export default function LessonPage({ params }) {
                     : "✓ Darsni tugatdim"}
                 </button>
 
-
                 {hasTest && (
                   <p>
                     Testni topshirsangiz,
@@ -1096,62 +1191,64 @@ export default function LessonPage({ params }) {
                     belgilanadi.
                   </p>
                 )}
-
               </>
             ) : (
-
               <div className="lesson-complete-success">
                 ✓ Bu dars tugatilgan
               </div>
-
-            )}
-
-          </section>
-
-
-          {/* ===================================================
-              OLDINGI / KEYINGI
-          =================================================== */}
-
-          <div className="lesson-bottom-navigation">
-
-            {previousLesson ? (
-              <Link
-                href={
-                  `/user/course/${id}` +
-                  `/lesson/${previousLesson.id}`
-                }
-                className="btn btn-ghost"
-              >
-                ← {previousLesson.title}
-              </Link>
-            ) : (
-              <span />
-            )}
-
-
-            {nextLesson ? (
-              <Link
-                href={
-                  `/user/course/${id}` +
-                  `/lesson/${nextLesson.id}`
-                }
-                className="btn btn-primary"
-              >
-                {nextLesson.title} →
-              </Link>
-            ) : (
-              <Link
-                href={`/user/course/${id}`}
-                className="btn btn-primary"
-              >
-                Kursni yakunlash →
-              </Link>
             )}
 
           </div>
 
         </section>
+
+        {/* ===================================================
+            LESSON NAVIGATION
+        =================================================== */}
+
+        <div
+          className="lesson-navigation"
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            gap: 16,
+            marginTop: 24,
+            flexWrap: "wrap",
+          }}
+        >
+
+          {previousLesson ? (
+            <Link
+              href={`/user/course/${id}/lesson/${previousLesson.id}`}
+              className="btn btn-ghost"
+              prefetch
+            >
+              ← Oldingi dars
+            </Link>
+          ) : (
+            <span />
+          )}
+
+          {nextLesson ? (
+            <Link
+              href={`/user/course/${id}/lesson/${nextLesson.id}`}
+              className="btn btn-primary"
+              prefetch
+            >
+              Keyingi dars →
+            </Link>
+          ) : (
+            <Link
+              href={`/user/course/${id}`}
+              className="btn btn-primary"
+              prefetch
+            >
+              Kursga qaytish →
+            </Link>
+          )}
+
+        </div>
 
       </main>
     </>
