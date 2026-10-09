@@ -10,7 +10,10 @@ import {
 } from "react";
 
 import { createClient } from "@/lib/supabase/client";
-import { useCachedApi } from "@/lib/api/useCached";
+import {
+  useCachedApi,
+  prefetchApi,
+} from "@/lib/api/useCached";
 
 const UserDataContext = createContext(null);
 
@@ -19,211 +22,34 @@ export function UserDataProvider({ children }) {
 
   /* =========================================================
      USER
-     ========================================================= */
+  ========================================================= */
 
   const [user, setUser] = useState(null);
 
   /* =========================================================
      PROFILE
-     ========================================================= */
+  ========================================================= */
 
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
   /* =========================================================
      NOTIFICATIONS
-     ========================================================= */
+  ========================================================= */
 
   const [unread, setUnread] = useState(0);
   const [notifications, setNotifications] = useState([]);
-  const [notificationsLoaded, setNotificationsLoaded] = useState(false);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
-
-  /* =========================================================
-     DASHBOARD - BO'LAKLAB YUKLASH
-     
-     Endi eski:
-     
-       /api/user/dashboard
-
-     o'rniga:
-
-       /api/user/dashboard/stats
-       /api/user/dashboard/courses
-       /api/user/dashboard/library
-       /api/user/dashboard/badges
-
-     ishlatiladi.
-
-     Barcha 4 ta request parallel boshlanadi.
-     ========================================================= */
-
-  const {
-    data: statsData,
-    loading: statsLoading,
-    error: statsError,
-    refresh: refreshStats,
-    mutate: mutateStats,
-  } = useCachedApi("/api/user/dashboard/stats");
-
-  const {
-    data: coursesData,
-    loading: coursesLoading,
-    error: coursesError,
-    refresh: refreshCourses,
-    mutate: mutateCourses,
-  } = useCachedApi("/api/user/dashboard/courses");
-
-  const {
-    data: libraryData,
-    loading: libraryLoading,
-    error: libraryError,
-    refresh: refreshLibrary,
-    mutate: mutateLibrary,
-  } = useCachedApi("/api/user/dashboard/library");
-
-  const {
-    data: badgesData,
-    loading: badgesLoading,
-    error: badgesError,
-    refresh: refreshBadges,
-    mutate: mutateBadges,
-  } = useCachedApi("/api/user/dashboard/badges");
-
-  /* =========================================================
-     DASHBOARD MA'LUMOTLARI
-     ========================================================= */
-
-  /*
-   * stats API:
-   *
-   * {
-   *   firstName,
-   *   avatarUrl,
-   *   stats
-   * }
-   */
-
-  const dashboardStats = statsData?.stats || null;
-
-  /*
-   * courses API:
-   *
-   * {
-   *   courses: [...]
-   * }
-   */
-
-  const enrolledCourses = coursesData?.courses || [];
-
-  /*
-   * library API:
-   *
-   * {
-   *   courses: [...]
-   * }
-   */
-
-  const libraryCourses = libraryData?.courses || [];
-
-  /*
-   * badges API:
-   *
-   * {
-   *   badges: [...]
-   * }
-   */
-
-  const badges = badgesData?.badges || [];
-
-  /* =========================================================
-     PROFILE'DAN FALLBACK
-     ========================================================= */
-
-  const firstName =
-    statsData?.firstName ||
-    profile?.full_name?.trim()?.split(/\s+/)?.[0] ||
-    "";
-
-  const avatarUrl =
-    statsData?.avatarUrl ||
-    profile?.avatar_url ||
-    "";
-
-  /* =========================================================
-     DASHBOARD OBJECT
-     
-     Eski componentlar "dashboard"dan foydalanayotgan bo'lsa,
-     ularni buzmaslik uchun barcha bo'laklarni bitta obyektga
-     birlashtirib beramiz.
-
-     Muhim:
-     Bu obyekt barcha request tugashini kutmaydi.
-     Qaysi ma'lumot kelgan bo'lsa, o'sha darhol mavjud bo'ladi.
-     ========================================================= */
-
-  const dashboard = useMemo(
-    () => ({
-      firstName,
-      avatarUrl,
-      stats: dashboardStats,
-      enrolled: enrolledCourses,
-      library: libraryCourses,
-      badges,
-    }),
-    [
-      firstName,
-      avatarUrl,
-      dashboardStats,
-      enrolledCourses,
-      libraryCourses,
-      badges,
-    ]
-  );
-
-  /* =========================================================
-     DASHBOARD LOADING
-     
-     Faqat stats hali kelmagan bo'lsa asosiy dashboard loading
-     hisoblanadi.
-
-     Shuning uchun:
-     
-       stats keladi
-          ↓
-       page ochiladi
-          ↓
-       courses/library/badges hali kelayotgan bo'lishi mumkin
-          ↓
-       ular kelganida UI avtomatik yangilanadi
-
-     Bu biz xohlagan "chunk loading".
-     ========================================================= */
-
-  const dashboardLoading =
-    !dashboardStats && statsLoading;
-
-  /* =========================================================
-     DASHBOARD ERROR
-     
-     Stats xatosi asosiy error sifatida olinadi.
-     Agar stats yaxshi bo'lsa, boshqa bo'laklardan biridagi
-     xato ham context orqali ko'rinadi.
-     ========================================================= */
-
-  const dashboardError =
-    statsError ||
-    coursesError ||
-    libraryError ||
-    badgesError ||
-    "";
+  const [notificationsLoaded, setNotificationsLoaded] =
+    useState(false);
+  const [notificationsLoading, setNotificationsLoading] =
+    useState(false);
 
   /* =========================================================
      USER + PROFILE + UNREAD
      
-     Birinchi bosqichda userni aniqlaymiz.
-     Profile va unread parallel yuklanadi.
-     ========================================================= */
+     Avval user aniqlanadi.
+     Keyin profile va unread parallel olinadi.
+  ========================================================= */
 
   useEffect(() => {
     let cancelled = false;
@@ -243,6 +69,12 @@ export function UserDataProvider({ children }) {
             userError
           );
 
+          if (!cancelled) {
+            setUser(null);
+            setProfile(null);
+            setUnread(0);
+          }
+
           return;
         }
 
@@ -261,26 +93,27 @@ export function UserDataProvider({ children }) {
         setUser(currentUser);
 
         /*
-         * Profile va unread bir vaqtda.
+         * Profile va unread bir vaqtda yuklanadi.
          */
+        const [
+          profileResult,
+          unreadResult,
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("full_name, avatar_url")
+            .eq("id", currentUser.id)
+            .maybeSingle(),
 
-        const [profileResult, unreadResult] =
-          await Promise.all([
-            supabase
-              .from("profiles")
-              .select("full_name, avatar_url")
-              .eq("id", currentUser.id)
-              .maybeSingle(),
-
-            supabase
-              .from("notifications")
-              .select("id", {
-                count: "exact",
-                head: true,
-              })
-              .eq("user_id", currentUser.id)
-              .eq("read", false),
-          ]);
+          supabase
+            .from("notifications")
+            .select("id", {
+              count: "exact",
+              head: true,
+            })
+            .eq("user_id", currentUser.id)
+            .eq("read", false),
+        ]);
 
         if (cancelled) return;
 
@@ -321,106 +154,240 @@ export function UserDataProvider({ children }) {
   }, [supabase]);
 
   /* =========================================================
+     DASHBOARD
+     
+     Muhim:
+     
+     user aniqlanmaguncha API request yuborilmaydi.
+     
+     user aniqlangandan keyin 4 ta API parallel ishlaydi:
+     
+       stats
+       courses
+       library
+       badges
+     
+     Har biri mustaqil cache'ga ega.
+  ========================================================= */
+
+  const dashboardEnabled = Boolean(user?.id);
+
+  /* =========================================================
+     DASHBOARD STATS
+  ========================================================= */
+
+  const {
+    data: statsData,
+    loading: statsLoading,
+    error: statsError,
+    refresh: refreshStats,
+    mutate: mutateStats,
+  } = useCachedApi(
+    "/api/user/dashboard/stats",
+    {
+      enabled: dashboardEnabled,
+    }
+  );
+
+  /* =========================================================
+     DASHBOARD COURSES
+  ========================================================= */
+
+  const {
+    data: coursesData,
+    loading: coursesLoading,
+    error: coursesError,
+    refresh: refreshCourses,
+    mutate: mutateCourses,
+  } = useCachedApi(
+    "/api/user/dashboard/courses",
+    {
+      enabled: dashboardEnabled,
+    }
+  );
+
+  /* =========================================================
+     DASHBOARD LIBRARY
+  ========================================================= */
+
+  const {
+    data: libraryData,
+    loading: libraryLoading,
+    error: libraryError,
+    refresh: refreshLibrary,
+    mutate: mutateLibrary,
+  } = useCachedApi(
+    "/api/user/dashboard/library",
+    {
+      enabled: dashboardEnabled,
+    }
+  );
+
+  /* =========================================================
+     DASHBOARD BADGES
+  ========================================================= */
+
+  const {
+    data: badgesData,
+    loading: badgesLoading,
+    error: badgesError,
+    refresh: refreshBadges,
+    mutate: mutateBadges,
+  } = useCachedApi(
+    "/api/user/dashboard/badges",
+    {
+      enabled: dashboardEnabled,
+    }
+  );
+
+  /* =========================================================
+     DASHBOARD MA'LUMOTLARI
+  ========================================================= */
+
+  const dashboardStats =
+    statsData?.stats || null;
+
+  const enrolledCourses =
+    coursesData?.courses || [];
+
+  const libraryCourses =
+    libraryData?.courses || [];
+
+  const badges =
+    badgesData?.badges || [];
+
+  /* =========================================================
+     PROFILE'DAN FALLBACK
+  ========================================================= */
+
+  const firstName =
+    statsData?.firstName ||
+    profile?.full_name
+      ?.trim()
+      ?.split(/\s+/)?.[0] ||
+    "";
+
+  const avatarUrl =
+    statsData?.avatarUrl ||
+    profile?.avatar_url ||
+    "";
+
+  /* =========================================================
+     DASHBOARD OBJECT
+     
+     Barcha API tugashini kutmaydi.
+     
+     Qaysi bo'lak kelgan bo'lsa,
+     o'sha darhol mavjud bo'ladi.
+  ========================================================= */
+
+  const dashboard = useMemo(
+    () => ({
+      firstName,
+      avatarUrl,
+      stats: dashboardStats,
+      enrolled: enrolledCourses,
+      library: libraryCourses,
+      badges,
+    }),
+    [
+      firstName,
+      avatarUrl,
+      dashboardStats,
+      enrolledCourses,
+      libraryCourses,
+      badges,
+    ]
+  );
+
+  /* =========================================================
+     DASHBOARD LOADING
+     
+     Faqat stats hali kelmagan bo'lsa
+     asosiy dashboard loading hisoblanadi.
+     
+     Stats kelishi bilan sahifa ochiladi.
+     
+     Courses/library/badges esa fonda davom etadi.
+  ========================================================= */
+
+  const dashboardLoading =
+    !dashboardStats && statsLoading;
+
+  /* =========================================================
+     DASHBOARD ERROR
+  ========================================================= */
+
+  const dashboardError =
+    statsError ||
+    coursesError ||
+    libraryError ||
+    badgesError ||
+    "";
+
+  /* =========================================================
      BACKGROUND PRELOAD
      
-     Provider render bo'lishi bilan useCachedApi yuqoridagi
-     4 ta endpointni boshlaydi.
-
-     Demak:
-
-       Provider
-          ↓
-       ┌───────────────┐
-       │               │
-       ↓               ↓
-     stats          courses
-       ↓               ↓
-      cache           cache
-
-       library       badges
-          ↓             ↓
-         cache         cache
-
-     Har biri mustaqil.
-     ========================================================= */
+     User aniqlangandan keyin boshqa muhim API'larni
+     ham fonda oldindan yuklash mumkin.
+     
+     Hozircha faqat notifications preload qilamiz.
+     
+     Dashboardning 4 endpointi esa useCachedApi orqali
+     allaqachon parallel yuklanmoqda.
+  ========================================================= */
 
   useEffect(() => {
     if (!user?.id) return;
 
     /*
-     * Hozircha bu effect maxsus fetch qilmaydi.
+     * Notifications sahifasiga o'tishdan oldin
+     * ma'lumotni fonda olish.
      *
-     * useCachedApi requestlarni o'zi boshqaradi.
-     *
-     * Keyingi bosqichda shu joydan boshqa sahifalar:
-     *
-     * - notifications
-     * - course details
-     * - settings
-     *
-     * uchun ham background preload qo'shish mumkin.
+     * Agar cache'da yangi ma'lumot mavjud bo'lsa,
+     * yangi request yuborilmaydi.
      */
+    prefetchApi("/api/user/notifications");
   }, [user?.id]);
 
   /* =========================================================
      DASHBOARD REFRESH
      
      Barcha dashboard qismlarini parallel refresh qiladi.
-     
-     Bu:
-     
-       refreshDashboard()
-     
-     chaqirilganda 4 ta endpointni bir vaqtda yangilaydi.
-     ========================================================= */
+  ========================================================= */
 
-  const refreshDashboard = useCallback(async () => {
-    const results = await Promise.allSettled([
-      refreshStats(),
-      refreshCourses(),
-      refreshLibrary(),
-      refreshBadges(),
-    ]);
+  const refreshDashboard = useCallback(
+    async () => {
+      const results =
+        await Promise.allSettled([
+          refreshStats(),
+          refreshCourses(),
+          refreshLibrary(),
+          refreshBadges(),
+        ]);
 
-    return results;
-  }, [
-    refreshStats,
-    refreshCourses,
-    refreshLibrary,
-    refreshBadges,
-  ]);
+      return results;
+    },
+    [
+      refreshStats,
+      refreshCourses,
+      refreshLibrary,
+      refreshBadges,
+    ]
+  );
 
   /* =========================================================
      DASHBOARD MUTATE
      
-     Boshqa componentlar serverga qayta fetch qilmasdan
-     lokal cache/state ni yangilashi mumkin.
-     
-     updater:
-     
-       {
-         stats: ...
-       }
-
-     yoki:
-
-       {
-         courses: ...
-       }
-
-     kabi ishlatiladi.
-     ========================================================= */
+     Dashboardning kerakli qismini lokal yangilash.
+  ========================================================= */
 
   const updateDashboard = useCallback(
     (updater) => {
       if (!updater) return;
 
       /*
-       * Eski API bilan ishlagan componentlar uchun
-       * umumiy dashboard updater.
-
-       * Funksiya ko'rinishidagi updater bo'lsa,
-       * mavjud dashboard obyektidan yangi qiymat olamiz.
+       * Funksiya ko'rinishidagi updater.
        */
 
       if (typeof updater === "function") {
@@ -433,10 +400,14 @@ export function UserDataProvider({ children }) {
           badges,
         };
 
-        const next = updater(currentDashboard);
+        const next =
+          updater(currentDashboard);
 
         if (!next) return;
 
+        /*
+         * Stats
+         */
         if (
           Object.prototype.hasOwnProperty.call(
             next,
@@ -445,11 +416,14 @@ export function UserDataProvider({ children }) {
         ) {
           mutateStats((current) => ({
             ...(current || {}),
+
             stats: next.stats,
+
             firstName:
               next.firstName ??
               current?.firstName ??
               firstName,
+
             avatarUrl:
               next.avatarUrl ??
               current?.avatarUrl ??
@@ -457,6 +431,9 @@ export function UserDataProvider({ children }) {
           }));
         }
 
+        /*
+         * Enrolled courses
+         */
         if (
           Object.prototype.hasOwnProperty.call(
             next,
@@ -468,6 +445,9 @@ export function UserDataProvider({ children }) {
           });
         }
 
+        /*
+         * Library
+         */
         if (
           Object.prototype.hasOwnProperty.call(
             next,
@@ -479,6 +459,9 @@ export function UserDataProvider({ children }) {
           });
         }
 
+        /*
+         * Badges
+         */
         if (
           Object.prototype.hasOwnProperty.call(
             next,
@@ -493,10 +476,13 @@ export function UserDataProvider({ children }) {
         return;
       }
 
-      /*
-       * Oddiy object updater.
-       */
+      /* =====================================================
+         OBJECT UPDATER
+      ===================================================== */
 
+      /*
+       * Stats
+       */
       if (
         Object.prototype.hasOwnProperty.call(
           updater,
@@ -509,6 +495,9 @@ export function UserDataProvider({ children }) {
         }));
       }
 
+      /*
+       * Enrolled
+       */
       if (
         Object.prototype.hasOwnProperty.call(
           updater,
@@ -520,6 +509,9 @@ export function UserDataProvider({ children }) {
         });
       }
 
+      /*
+       * Library
+       */
       if (
         Object.prototype.hasOwnProperty.call(
           updater,
@@ -531,6 +523,9 @@ export function UserDataProvider({ children }) {
         });
       }
 
+      /*
+       * Badges
+       */
       if (
         Object.prototype.hasOwnProperty.call(
           updater,
@@ -559,8 +554,8 @@ export function UserDataProvider({ children }) {
   /* =========================================================
      NOTIFICATIONS
      
-     Faqat kerak bo'lganda yuklanadi.
-     ========================================================= */
+     To'liq notificationlar faqat kerak bo'lganda olinadi.
+  ========================================================= */
 
   const loadNotifications = useCallback(
     async (force = false) => {
@@ -580,17 +575,19 @@ export function UserDataProvider({ children }) {
       try {
         setNotificationsLoading(true);
 
-        const { data, error } =
-          await supabase
-            .from("notifications")
-            .select(
-              "id, title, body, type, read, created_at"
-            )
-            .eq("user_id", user.id)
-            .order("created_at", {
-              ascending: false,
-            })
-            .limit(100);
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("notifications")
+          .select(
+            "id, title, body, type, read, created_at"
+          )
+          .eq("user_id", user.id)
+          .order("created_at", {
+            ascending: false,
+          })
+          .limit(100);
 
         if (error) {
           console.error(
@@ -607,10 +604,10 @@ export function UserDataProvider({ children }) {
         /*
          * Aniq unread count.
          */
-
-        const unreadCount = (data || []).filter(
-          (item) => !item.read
-        ).length;
+        const unreadCount =
+          (data || []).filter(
+            (item) => !item.read
+          ).length;
 
         setUnread(unreadCount);
       } catch (error) {
@@ -634,18 +631,22 @@ export function UserDataProvider({ children }) {
      BIRTA NOTIFICATIONNI READ QILISH
      
      Optimistic UI.
-     ========================================================= */
+  ========================================================= */
 
   const markOneRead = useCallback(
     async (notificationId) => {
-      if (!notificationId || !user?.id) {
+      if (
+        !notificationId ||
+        !user?.id
+      ) {
         return;
       }
 
-      const target = notifications.find(
-        (item) =>
-          item.id === notificationId
-      );
+      const target =
+        notifications.find(
+          (item) =>
+            item.id === notificationId
+        );
 
       if (!target || target.read) {
         return;
@@ -654,7 +655,6 @@ export function UserDataProvider({ children }) {
       /*
        * UI darhol o'zgaradi.
        */
-
       setNotifications((current) =>
         current.map((item) =>
           item.id === notificationId
@@ -677,8 +677,14 @@ export function UserDataProvider({ children }) {
             .update({
               read: true,
             })
-            .eq("id", notificationId)
-            .eq("user_id", user.id);
+            .eq(
+              "id",
+              notificationId
+            )
+            .eq(
+              "user_id",
+              user.id
+            );
 
         if (error) {
           console.error(
@@ -687,37 +693,49 @@ export function UserDataProvider({ children }) {
           );
 
           /*
-           * Xatolik bo'lsa rollback.
+           * Rollback.
            */
-
-          setNotifications((current) =>
-            current.map((item) =>
-              item.id === notificationId
-                ? {
-                    ...item,
-                    read: false,
-                  }
-                : item
-            )
+          setNotifications(
+            (current) =>
+              current.map(
+                (item) =>
+                  item.id ===
+                  notificationId
+                    ? {
+                        ...item,
+                        read: false,
+                      }
+                    : item
+              )
           );
 
-          setUnread((current) => current + 1);
+          setUnread(
+            (current) => current + 1
+          );
         }
       } catch (error) {
         console.error(error);
 
-        setNotifications((current) =>
-          current.map((item) =>
-            item.id === notificationId
-              ? {
-                  ...item,
-                  read: false,
-                }
-              : item
-          )
+        /*
+         * Rollback.
+         */
+        setNotifications(
+          (current) =>
+            current.map(
+              (item) =>
+                item.id ===
+                notificationId
+                  ? {
+                      ...item,
+                      read: false,
+                    }
+                  : item
+            )
         );
 
-        setUnread((current) => current + 1);
+        setUnread(
+          (current) => current + 1
+        );
       }
     },
     [
@@ -729,15 +747,16 @@ export function UserDataProvider({ children }) {
 
   /* =========================================================
      HAMMASINI READ QILISH
-     ========================================================= */
+  ========================================================= */
 
   const markAllRead = useCallback(
     async () => {
       if (!user?.id) return;
 
-      const hadUnread = notifications.some(
-        (item) => !item.read
-      );
+      const hadUnread =
+        notifications.some(
+          (item) => !item.read
+        );
 
       if (!hadUnread) {
         setUnread(0);
@@ -747,12 +766,12 @@ export function UserDataProvider({ children }) {
       /*
        * Optimistic UI.
        */
-
-      setNotifications((current) =>
-        current.map((item) => ({
-          ...item,
-          read: true,
-        }))
+      setNotifications(
+        (current) =>
+          current.map((item) => ({
+            ...item,
+            read: true,
+          }))
       );
 
       setUnread(0);
@@ -764,8 +783,14 @@ export function UserDataProvider({ children }) {
             .update({
               read: true,
             })
-            .eq("user_id", user.id)
-            .eq("read", false);
+            .eq(
+              "user_id",
+              user.id
+            )
+            .eq(
+              "read",
+              false
+            );
 
         if (error) {
           console.error(
@@ -791,7 +816,7 @@ export function UserDataProvider({ children }) {
 
   /* =========================================================
      PROFILE YANGILASH
-     ========================================================= */
+  ========================================================= */
 
   const updateProfile = useCallback(
     (patch) => {
@@ -804,156 +829,122 @@ export function UserDataProvider({ children }) {
   );
 
   /* =========================================================
-     ALOHIDA DASHBOARD REFRESH'LAR
+     ALOHIDA DASHBOARD REFRESH
      
-     Agar keyinchalik faqat bitta bo'lakni yangilash kerak
-     bo'lsa, boshqa requestlarni qayta yubormaymiz.
-     ========================================================= */
+     Faqat kerakli bo'lakni yangilaydi.
+  ========================================================= */
 
-  const refreshDashboardStats = useCallback(
-    () => refreshStats(),
-    [refreshStats]
-  );
+  const refreshDashboardStats =
+    useCallback(
+      () => refreshStats(),
+      [refreshStats]
+    );
 
-  const refreshDashboardCourses = useCallback(
-    () => refreshCourses(),
-    [refreshCourses]
-  );
+  const refreshDashboardCourses =
+    useCallback(
+      () => refreshCourses(),
+      [refreshCourses]
+    );
 
-  const refreshDashboardLibrary = useCallback(
-    () => refreshLibrary(),
-    [refreshLibrary]
-  );
+  const refreshDashboardLibrary =
+    useCallback(
+      () => refreshLibrary(),
+      [refreshLibrary]
+    );
 
-  const refreshDashboardBadges = useCallback(
-    () => refreshBadges(),
-    [refreshBadges]
-  );
+  const refreshDashboardBadges =
+    useCallback(
+      () => refreshBadges(),
+      [refreshBadges]
+    );
 
   /* =========================================================
      CONTEXT VALUE
-     ========================================================= */
+  ========================================================= */
 
   const value = useMemo(
     () => ({
       /* =====================================================
          USER
-         ===================================================== */
+      ===================================================== */
 
       user,
 
       /* =====================================================
          PROFILE
-         ===================================================== */
+      ===================================================== */
 
       profile,
       profileLoading,
 
       /* =====================================================
          DASHBOARD
-         ===================================================== */
+      ===================================================== */
 
       dashboard,
 
-      /*
-       * Asosiy loading:
-       * stats hali kelmagan bo'lsa true.
-       *
-       * Courses/library/badges kelishini kutmaydi.
-       */
-
       dashboardLoading,
-
       dashboardError,
 
-      /*
-       * Dashboard qismlari
-       */
-
       dashboardStats,
-
       enrolledCourses,
-
       libraryCourses,
-
       badges,
 
       firstName,
-
       avatarUrl,
 
-      /*
-       * Barcha dashboardni parallel refresh qilish
-       */
+      /* =====================================================
+         DASHBOARD REFRESH
+      ===================================================== */
 
       refreshDashboard,
 
-      /*
-       * Dashboardning alohida qismlarini refresh qilish
-       */
-
       refreshDashboardStats,
-
       refreshDashboardCourses,
-
       refreshDashboardLibrary,
-
       refreshDashboardBadges,
 
-      /*
-       * Lokal dashboard update
-       */
+      /* =====================================================
+         DASHBOARD LOCAL UPDATE
+      ===================================================== */
 
       updateDashboard,
 
       /* =====================================================
-         INDIVIDUAL LOADING STATES
-         
-         Componentlar xohlasa qaysi qism hali yuklanayotganini
-         alohida bilishi mumkin.
-         ===================================================== */
+         INDIVIDUAL LOADING
+      ===================================================== */
 
       statsLoading,
-
       coursesLoading,
-
       libraryLoading,
-
       badgesLoading,
 
       /* =====================================================
          INDIVIDUAL ERRORS
-         ===================================================== */
+      ===================================================== */
 
       statsError,
-
       coursesError,
-
       libraryError,
-
       badgesError,
 
       /* =====================================================
          NOTIFICATIONS
-         ===================================================== */
+      ===================================================== */
 
       unread,
-
       notifications,
-
       notificationsLoaded,
-
       notificationsLoading,
 
       loadNotifications,
-
       markOneRead,
-
       markAllRead,
 
       /* =====================================================
          PROFILE UPDATE
-         ===================================================== */
+      ===================================================== */
 
       updateProfile,
     }),
@@ -1017,10 +1008,11 @@ export function UserDataProvider({ children }) {
 
 /* =========================================================
    HOOK
-   ========================================================= */
+========================================================= */
 
 export function useUserData() {
-  const context = useContext(UserDataContext);
+  const context =
+    useContext(UserDataContext);
 
   if (!context) {
     throw new Error(
