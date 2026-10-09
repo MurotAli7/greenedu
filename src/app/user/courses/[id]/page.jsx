@@ -28,7 +28,6 @@ import { apiFetch } from "@/lib/api/client";
 import {
   useCachedApi,
   invalidateCache,
-  prefetchApi,
 } from "@/lib/api/useCached";
 
 import { TEST_RESULT_MESSAGE } from "@/lib/constants";
@@ -42,16 +41,6 @@ export default function CoursePage({ params }) {
   const [enrolled, setEnrolled] = useState(false);
   const [done, setDone] = useState(new Set());
   const [openLesson, setOpenLesson] = useState(null);
-
-  const [lessonDetails, setLessonDetails] = useState(
-    () => new Map()
-  );
-
-  const [lessonLoading, setLessonLoading] = useState(
-    () => new Set()
-  );
-
-  const requestsRef = useRef(new Map());
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -70,309 +59,82 @@ export default function CoursePage({ params }) {
     [id]
   );
 
-  const lessonsUrl = useMemo(
-    () =>
-      `/api/user/course/lessons?id=${encodeURIComponent(id)}`,
-    [id]
-  );
-
-  const lessonUrl = useCallback(
-    (lessonId) =>
-      `/api/user/course/lesson?courseId=${encodeURIComponent(
-        id
-      )}&lessonId=${encodeURIComponent(lessonId)}`,
-    [id]
-  );
-
-  // KURS API
+  // Faqat bitta API ishlatiladi: kurs + darslar + materiallar + progress.
   const {
     data: courseData,
     loading: courseLoading,
     error: courseError,
     mutate: mutateCourse,
+    refresh: refreshCourse,
   } = useCachedApi(courseUrl);
 
-  // DARSLAR API
-  const {
-    data: lessonsData,
-    loading: lessonsLoading,
-    error: lessonsError,
-    mutate: mutateLessons,
-  } = useCachedApi(lessonsUrl);
-
-  // KURS MA'LUMOTLARI
+  // API ma'lumotlarini sahifa holatiga joylashtiramiz.
   useEffect(() => {
     if (!courseData) return;
 
     setCourse(courseData.course || null);
-    setEnrolled(Boolean(courseData.enrolled));
-  }, [courseData]);
-
-  // DARSLAR VA PROGRESS
-  useEffect(() => {
-    if (!lessonsData) return;
-
     setLessons(
-      Array.isArray(lessonsData.lessons)
-        ? lessonsData.lessons
+      Array.isArray(courseData.lessons)
+        ? courseData.lessons
         : []
     );
-
+    setEnrolled(Boolean(courseData.enrolled));
     setDone(
       new Set(
-        Array.isArray(lessonsData.doneLessonIds)
-          ? lessonsData.doneLessonIds
+        Array.isArray(courseData.doneLessonIds)
+          ? courseData.doneLessonIds
+          : []
+      )
+    );
+  }, [courseData]);
+
+  // API xatosi
+  useEffect(() => {
+    if (courseError) {
+      setError(courseError);
+    }
+  }, [courseError]);
+
+  // Yagona course route orqali ma'lumotlarni qayta olish.
+  const reloadCourse = useCallback(async () => {
+    setError("");
+    const fresh = await refreshCourse();
+
+    if (!fresh) {
+      setError("Kurs ma'lumotlarini qayta yuklab bo'lmadi.");
+      return null;
+    }
+
+    setCourse(fresh.course || null);
+    setLessons(Array.isArray(fresh.lessons) ? fresh.lessons : []);
+    setEnrolled(Boolean(fresh.enrolled));
+    setDone(
+      new Set(
+        Array.isArray(fresh.doneLessonIds)
+          ? fresh.doneLessonIds
           : []
       )
     );
 
-    if (typeof lessonsData.enrolled === "boolean") {
-      setEnrolled(lessonsData.enrolled);
-    }
-  }, [lessonsData]);
+    return fresh;
+  }, [refreshCourse]);
 
-  // API XATOLARI
-  useEffect(() => {
-    if (courseError || lessonsError) {
-      setError(
-        courseError ||
-          lessonsError ||
-          "Ma'lumotlarni yuklab bo'lmadi."
-      );
-    }
-  }, [courseError, lessonsError]);
-
-  // BIR DARSNING TO'LIQ MA'LUMOTINI YUKLASH
-  const loadLessonDetail = useCallback(
-    async (lesson) => {
-      if (!lesson?.id || !enrolled) {
-        return null;
-      }
-
-      const key = String(lesson.id);
-
-      const cached = lessonDetails.get(key);
-
-      if (cached) {
-        return cached;
-      }
-
-      // Oldindan boshlangan preload so'rovi bo'lsa,
-      // shu so'rovning natijasidan foydalanamiz.
-      const existingRequest = requestsRef.current.get(key);
-
-      if (existingRequest) {
-        setLessonLoading((previous) => {
-          const next = new Set(previous);
-          next.add(key);
-          return next;
-        });
-
-        try {
-          return await existingRequest;
-        } finally {
-          setLessonLoading((previous) => {
-            const next = new Set(previous);
-            next.delete(key);
-            return next;
-          });
-        }
-      }
-
-      setLessonLoading((previous) => {
-        const next = new Set(previous);
-        next.add(key);
-        return next;
-      });
-
-      const request = (async () => {
-        try {
-          const response = await apiFetch(
-            lessonUrl(lesson.id)
-          );
-
-          const detail = response?.lesson || response;
-
-          if (
-            !detail ||
-            typeof detail !== "object"
-          ) {
-            throw new Error(
-              "Dars ma'lumotlari topilmadi."
-            );
-          }
-
-          const merged = {
-            ...lesson,
-            ...detail,
-          };
-
-          setLessonDetails((previous) => {
-            const next = new Map(previous);
-            next.set(key, merged);
-            return next;
-          });
-
-          setError("");
-          return merged;
-        } catch (err) {
-          console.error(
-            "LESSON DETAIL ERROR:",
-            err
-          );
-
-          setError(
-            err?.message ||
-              "Dars ma'lumotlarini yuklab bo'lmadi."
-          );
-
-          return null;
-        } finally {
-          requestsRef.current.delete(key);
-
-          setLessonLoading((previous) => {
-            const next = new Set(previous);
-            next.delete(key);
-            return next;
-          });
-        }
-      })();
-
-      requestsRef.current.set(key, request);
-
-      return request;
-    },
-    [
-      enrolled,
-      lessonDetails,
-      lessonUrl,
-    ]
-  );
-
-  // KEYINGI DARSLARNI FONDA PRELOAD QILISH
-  const preloadLesson = useCallback(
-    (lesson) => {
-      if (!lesson?.id) return;
-
-      const key = String(lesson.id);
-
-      if (
-        lessonDetails.has(key) ||
-        requestsRef.current.has(key)
-      ) {
-        return;
-      }
-
-      const request = prefetchApi(
-        lessonUrl(lesson.id)
-      )
-        .then((response) => {
-          const detail = response?.lesson || response;
-
-          if (
-            !detail ||
-            typeof detail !== "object"
-          ) {
-            return null;
-          }
-
-          const merged = {
-            ...lesson,
-            ...detail,
-          };
-
-          setLessonDetails((previous) => {
-            const next = new Map(previous);
-            next.set(key, merged);
-            return next;
-          });
-
-          return merged;
-        })
-        .catch((err) => {
-          console.warn(
-            "Lesson preload failed:",
-            key,
-            err
-          );
-
-          return null;
-        })
-        .finally(() => {
-          requestsRef.current.delete(key);
-        });
-
-      requestsRef.current.set(key, request);
-    },
-    [lessonDetails, lessonUrl]
-  );
-
-  // BIRINCHI IKKITA DARSNI FONDA YUKLASH
-  useEffect(() => {
-    if (!enrolled || lessons.length === 0) {
-      return;
-    }
-
-    const run = () => {
-      lessons.slice(0, 2).forEach(preloadLesson);
-    };
-
-    if ("requestIdleCallback" in window) {
-      const handle = window.requestIdleCallback(run, {
-        timeout: 1500,
-      });
-
-      return () => {
-        window.cancelIdleCallback(handle);
-      };
-    }
-
-    const timer = window.setTimeout(run, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [enrolled, lessons, preloadLesson]);
-
-  // DARSNI OCHISH / YOPISH
+  // Dars shu API javobida to'liq keladi — bosilganda ikkinchi so'rov yuborilmaydi.
   const handleOpenLesson = useCallback(
     (lesson) => {
       if (!lesson?.id || !enrolled) return;
-
-      const key = String(lesson.id);
 
       setError("");
       setReward(null);
       setTestMsg(null);
 
-      if (String(openLesson) === key) {
-        setOpenLesson(null);
-        return;
-      }
-
-      // UI avval ochiladi, material fonda yuklanadi.
-      setOpenLesson(lesson.id);
-
-      if (!lessonDetails.has(key)) {
-        void loadLessonDetail(lesson);
-      }
-
-      const index = lessons.findIndex(
-        (item) => String(item.id) === key
+      setOpenLesson((previous) =>
+        String(previous) === String(lesson.id)
+          ? null
+          : lesson.id
       );
-
-      if (index >= 0) {
-        lessons
-          .slice(index + 1, index + 3)
-          .forEach(preloadLesson);
-      }
     },
-    [
-      enrolled,
-      openLesson,
-      lessonDetails,
-      lessons,
-      loadLessonDetail,
-      preloadLesson,
-    ]
+    [enrolled]
   );
 
   // DARSNI TUGATISH
@@ -407,13 +169,10 @@ export default function CoursePage({ params }) {
           return next;
         });
 
-        mutateLessons((previous) => {
+        mutateCourse((previous) => {
           if (!previous) return previous;
 
-          const ids = new Set(
-            previous.doneLessonIds || []
-          );
-
+          const ids = new Set(previous.doneLessonIds || []);
           ids.add(lesson.id);
 
           return {
@@ -441,7 +200,7 @@ export default function CoursePage({ params }) {
         setBusy(false);
       }
     },
-    [busy, done, mutateLessons]
+    [busy, done, mutateCourse]
   );
 
   // KURSGA YOZILISH
@@ -456,30 +215,24 @@ export default function CoursePage({ params }) {
       try {
         await apiFetch("/api/user/enroll", {
           method: "POST",
-          body: {
-            courseId: id,
-          },
+          body: { courseId: id },
         });
 
+        // Yozilish muvaffaqiyatli. Endi bitta course API'dan
+        // darslarning to'liq materiallarini qayta olamiz.
         setEnrolled(true);
-
         mutateCourse((previous) =>
           previous
-            ? {
-                ...previous,
-                enrolled: true,
-              }
+            ? { ...previous, enrolled: true }
             : previous
         );
 
-        mutateLessons((previous) =>
-          previous
-            ? {
-                ...previous,
-                enrolled: true,
-              }
-            : previous
-        );
+        const fresh = await reloadCourse();
+        if (!fresh) {
+          setError(
+            "Kursga yozildingiz, lekin dars materiallarini yangilash amalga oshmadi. Qayta yuklashni bosing."
+          );
+        }
 
         invalidateCache("/api/user/dashboard");
       } catch (err) {
@@ -491,12 +244,7 @@ export default function CoursePage({ params }) {
         setBusy(false);
       }
     },
-    [
-      busy,
-      id,
-      mutateCourse,
-      mutateLessons,
-    ]
+    [busy, id, mutateCourse, reloadCourse]
   );
 
   // TEST NATIJASI
@@ -512,21 +260,9 @@ export default function CoursePage({ params }) {
         return;
       }
 
-      const baseLesson = lessons.find(
-        (item) =>
-          String(item.id) === String(openLesson)
-      );
-
-      const lesson = baseLesson
-        ? {
-            ...baseLesson,
-            ...(
-              lessonDetails.get(
-                String(openLesson)
-              ) || {}
-            ),
-          }
-        : null;
+      const lesson = lessons.find(
+        (item) => String(item.id) === String(openLesson)
+      ) || null;
 
       if (!lesson?.test_url) return;
 
@@ -582,7 +318,6 @@ export default function CoursePage({ params }) {
   }, [
     openLesson,
     lessons,
-    lessonDetails,
     done,
     handleComplete,
   ]);
@@ -912,7 +647,7 @@ export default function CoursePage({ params }) {
             )}
           </div>
 
-          {lessonsLoading && lessons.length === 0 ? (
+          {courseLoading && lessons.length === 0 ? (
             <div className="empty-lessons">
               <div className="empty-lessons-icon">⏳</div>
               <h3>Darslar yuklanmoqda...</h3>
@@ -931,11 +666,11 @@ export default function CoursePage({ params }) {
             <div className="lessons-list">
               {lessons.map((lesson, index) => {
                 const key = String(lesson.id);
-                const detail = lessonDetails.get(key) || null;
-
-                const activeLesson = detail
-                  ? { ...lesson, ...detail }
-                  : lesson;
+                const materialsIncluded = Boolean(
+                  courseData?.materialsIncluded
+                );
+                const detail = materialsIncluded ? lesson : null;
+                const activeLesson = lesson;
 
                 const isDone = done.has(lesson.id);
 
@@ -943,7 +678,7 @@ export default function CoursePage({ params }) {
                   String(openLesson) === key;
 
                 const detailLoading =
-                  lessonLoading.has(key);
+                  enrolled && !materialsIncluded && courseLoading;
 
                 const isFullscreen =
                   String(fullscreenLesson) === key;
@@ -1069,18 +804,18 @@ export default function CoursePage({ params }) {
                         {!detailLoading && !detail && (
                           <section className="lesson-inline-block">
                             <p className="lesson-text">
-                              Dars ma'lumotlarini yuklab
-                              bo'lmadi.
+                              Dars materiallari hali olinmadi.
                             </p>
 
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
-                              onClick={() =>
-                                loadLessonDetail(lesson)
-                              }
+                              onClick={() => {
+                                void reloadCourse();
+                              }}
+                              disabled={courseLoading}
                             >
-                              Qayta yuklash
+                              {courseLoading ? "Yuklanmoqda..." : "Qayta yuklash"}
                             </button>
                           </section>
                         )}
@@ -1245,6 +980,15 @@ export default function CoursePage({ params }) {
                                 )}
                               </section>
                             )}
+
+                            {!activeLesson.content &&
+                              !activeLesson.model_url &&
+                              !activeLesson.embed_url &&
+                              !activeLesson.test_url && (
+                                <p className="lesson-text">
+                                  Bu dars uchun hozircha alohida material qo'shilmagan.
+                                </p>
+                              )}
 
                             {/* DARSNI YAKUNLASH */}
                             <div className="lesson-complete-bar">
