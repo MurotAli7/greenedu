@@ -1,17 +1,22 @@
+
 "use client";
 
 import {
-  useEffect,
-  useState,
   use,
   useCallback,
+  useEffect,
+  useMemo,
   useRef,
+  useState,
 } from "react";
 
 import Link from "next/link";
 import Script from "next/script";
 
-import { CheckIcon } from "@/components/Icons";
+import {
+  CheckIcon,
+  DownloadIcon,
+} from "@/components/Icons";
 
 import {
   SkeletonPageHead,
@@ -23,14 +28,17 @@ import { apiFetch } from "@/lib/api/client";
 import {
   useCachedApi,
   invalidateCache,
+  prefetchApi,
 } from "@/lib/api/useCached";
+
+import { TEST_RESULT_MESSAGE } from "@/lib/constants";
 
 export default function CoursePage({ params }) {
   const { id } = use(params);
 
-  /* ============================================================
-     COURSE
-  ============================================================ */
+  /* =========================================================
+     STATE
+  ========================================================= */
 
   const [course, setCourse] = useState(null);
   const [lessons, setLessons] = useState([]);
@@ -39,60 +47,53 @@ export default function CoursePage({ params }) {
 
   const [done, setDone] = useState(new Set());
 
+  const [openLesson, setOpenLesson] = useState(null);
+
   const [busy, setBusy] = useState(false);
 
   const [error, setError] = useState("");
 
   const [reward, setReward] = useState(null);
 
-  /* ============================================================
-     INLINE LESSON
+  const [testMsg, setTestMsg] = useState(null);
 
-     Endi alohida lesson page yo'q.
-     Lesson shu sahifaning ichida ochiladi.
-  ============================================================ */
-
-  const [openLesson, setOpenLesson] = useState(null);
-
-  /* ============================================================
-     TEST
-  ============================================================ */
-
-  const [testMessage, setTestMessage] = useState(null);
-
-  /* ============================================================
+  /* =========================================================
      FULLSCREEN
-  ============================================================ */
+  ========================================================= */
 
   const [fullscreenLesson, setFullscreenLesson] =
     useState(null);
 
   const fullscreenRef = useRef(null);
 
-  /* ============================================================
-     COURSE DATA
-  ============================================================ */
+  /* =========================================================
+     COURSE API
+  ========================================================= */
 
-  const courseUrl =
-    `/api/user/course?id=${encodeURIComponent(id)}`;
+  const courseUrl = useMemo(
+    () =>
+      `/api/user/course?id=${encodeURIComponent(id)}`,
+    [id]
+  );
 
   const {
     data: courseData,
     loading,
     error: apiError,
     mutate,
+    refresh,
   } = useCachedApi(courseUrl);
 
-  /* ============================================================
+  /* =========================================================
      COURSE DATA -> STATE
-  ============================================================ */
+
+     API javobidan kelgan ma'lumot darhol UI'ga tushadi.
+  ========================================================= */
 
   useEffect(() => {
     if (!courseData) return;
 
-    setCourse(
-      courseData.course || null
-    );
+    setCourse(courseData.course || null);
 
     setLessons(
       Array.isArray(courseData.lessons)
@@ -115,9 +116,9 @@ export default function CoursePage({ params }) {
     );
   }, [courseData]);
 
-  /* ============================================================
-     API ERROR
-  ============================================================ */
+  /* =========================================================
+     ERROR
+  ========================================================= */
 
   useEffect(() => {
     if (apiError) {
@@ -125,35 +126,95 @@ export default function CoursePage({ params }) {
     }
   }, [apiError]);
 
-  /* ============================================================
-     LESSON OPEN / CLOSE
-  ============================================================ */
+  /* =========================================================
+     BACKGROUND PRELOAD
+
+     Kurs ochilgandan keyin browser imkoniga qarab
+     keyingi API ma'lumotlarini fonda tayyorlaymiz.
+
+     Hozir mavjud API'dan foydalanamiz.
+     ========================================================= */
+
+  useEffect(() => {
+    if (!id || !courseData) return;
+
+    /*
+     * Browser idle holatida cache refresh.
+     *
+     * Bu sahifani bloklamaydi.
+     */
+    const run = () => {
+      prefetchApi(courseUrl, {
+        ttl: 60_000,
+      }).catch(() => {});
+    };
+
+    if (
+      typeof window !== "undefined" &&
+      "requestIdleCallback" in window
+    ) {
+      const callbackId =
+        window.requestIdleCallback(run, {
+          timeout: 3000,
+        });
+
+      return () => {
+        window.cancelIdleCallback(callbackId);
+      };
+    }
+
+    const timer = setTimeout(run, 1200);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [id, courseData, courseUrl]);
+
+  /* =========================================================
+     LESSON OPEN
+
+     Endi boshqa page'ga o'tmaydi.
+     Shu sahifaning ichida ochiladi.
+  ========================================================= */
+
+  const openLessonData = useMemo(() => {
+    if (!openLesson) return null;
+
+    return (
+      lessons.find(
+        (lesson) =>
+          String(lesson.id) ===
+          String(openLesson)
+      ) || null
+    );
+  }, [lessons, openLesson]);
 
   const handleOpenLesson = useCallback(
     (lesson) => {
-      if (!lesson?.id) return;
+      if (!lesson) return;
 
       setError("");
       setReward(null);
-      setTestMessage(null);
+      setTestMsg(null);
 
-      setOpenLesson((previous) => {
-        if (
-          String(previous) ===
-          String(lesson.id)
-        ) {
-          return null;
-        }
+      setOpenLesson((previous) =>
+        String(previous) ===
+        String(lesson.id)
+          ? null
+          : lesson.id
+      );
 
-        return lesson.id;
-      });
+      /*
+       * Lesson content browser cache'da bo'lsa,
+       * darhol ishlatiladi.
+       */
     },
     []
   );
 
-  /* ============================================================
-     LESSON COMPLETE
-  ============================================================ */
+  /* =========================================================
+     COMPLETE LESSON
+  ========================================================= */
 
   const handleComplete = useCallback(
     async (lesson) => {
@@ -174,9 +235,9 @@ export default function CoursePage({ params }) {
           }
         );
 
-        /* ------------------------------------------------------
-           LOCAL STATE DARHOL YANGILANADI
-        ------------------------------------------------------ */
+        /*
+         * UI darhol yangilanadi.
+         */
 
         setDone((previous) => {
           const next = new Set(previous);
@@ -186,9 +247,9 @@ export default function CoursePage({ params }) {
           return next;
         });
 
-        /* ------------------------------------------------------
-           COURSE CACHE YANGILANADI
-        ------------------------------------------------------ */
+        /*
+         * Course cache ham yangilanadi.
+         */
 
         mutate((previous) => {
           if (!previous) return previous;
@@ -218,17 +279,17 @@ export default function CoursePage({ params }) {
           };
         });
 
-        /* ------------------------------------------------------
-           DASHBOARD CACHE ESKIRADI
-        ------------------------------------------------------ */
+        /*
+         * Dashboard cache eskiradi.
+         */
 
         invalidateCache(
           "/api/user/dashboard"
         );
 
-        /* ------------------------------------------------------
-           REWARD
-        ------------------------------------------------------ */
+        /*
+         * Reward
+         */
 
         if (!json?.already) {
           setReward({
@@ -259,9 +320,9 @@ export default function CoursePage({ params }) {
     [busy, mutate]
   );
 
-  /* ============================================================
+  /* =========================================================
      ENROLL
-  ============================================================ */
+  ========================================================= */
 
   const handleEnroll = useCallback(
     async () => {
@@ -282,28 +343,16 @@ export default function CoursePage({ params }) {
           }
         );
 
-        /* ------------------------------------------------------
-           UI DARHOL YANGILANADI
-        ------------------------------------------------------ */
-
         setEnrolled(true);
 
-        /* ------------------------------------------------------
-           CACHE YANGILANADI
-        ------------------------------------------------------ */
-
-        mutate((previous) => {
-          if (!previous) return previous;
-
-          return {
-            ...previous,
-            enrolled: true,
-          };
-        });
-
-        /* ------------------------------------------------------
-           DASHBOARD CACHE
-        ------------------------------------------------------ */
+        mutate((previous) =>
+          previous
+            ? {
+                ...previous,
+                enrolled: true,
+              }
+            : previous
+        );
 
         invalidateCache(
           "/api/user/dashboard"
@@ -320,36 +369,58 @@ export default function CoursePage({ params }) {
     [busy, id, mutate]
   );
 
-  /* ============================================================
-     TEST RESULT MESSAGE
-
-     Test iframe'dan natija yuborsa,
-     shu yerda qabul qilamiz.
-  ============================================================ */
+  /* =========================================================
+     TEST MESSAGE
+  ========================================================= */
 
   useEffect(() => {
-    const handleMessage = async (event) => {
-      const data = event.data;
-
-      if (!data) return;
+    const onMessage = async (event) => {
+      const payload = event.data;
 
       if (
-        data.type !==
-        "TEST_RESULT_MESSAGE"
+        !payload ||
+        payload.type !==
+          TEST_RESULT_MESSAGE ||
+        !openLesson
       ) {
         return;
       }
 
-      if (!openLesson) return;
+      const lesson = lessons.find(
+        (item) =>
+          String(item.id) ===
+          String(openLesson)
+      );
 
-      const lesson =
-        lessons.find(
-          (item) =>
-            String(item.id) ===
-            String(openLesson)
-        );
+      if (
+        !lesson ||
+        !lesson.test_url
+      ) {
+        return;
+      }
 
-      if (!lesson) return;
+      /*
+       * Xavfsizlik:
+       * test faqat o'z originidan kelishi kerak.
+       */
+
+      let expectedOrigin;
+
+      try {
+        expectedOrigin =
+          new URL(
+            lesson.test_url
+          ).origin;
+      } catch {
+        return;
+      }
+
+      if (
+        event.origin !==
+        expectedOrigin
+      ) {
+        return;
+      }
 
       try {
         const result =
@@ -363,37 +434,35 @@ export default function CoursePage({ params }) {
                   lesson.id,
 
                 score:
-                  data.score,
+                  payload.score,
 
                 total:
-                  data.total,
+                  payload.total,
               },
             }
           );
 
-        setTestMessage({
+        setTestMsg({
           lessonId:
             lesson.id,
 
-          text:
-            `Test natijasi saqlandi: ${data.score}/${data.total} (${result?.percent ?? 0}%)`,
+          text: `Test natijangiz saqlandi: ${payload.score}/${payload.total} (${result.percent}%)`,
         });
 
-        /* ------------------------------------------------------
-           TESTDAN O'TGAN BO'LSA DARSLARNI YAKUNLASH
-        ------------------------------------------------------ */
+        /*
+         * Testdan o'tgan bo'lsa,
+         * darsni avtomatik tugatamiz.
+         */
 
         if (
-          !done.has(
-            lesson.id
-          )
+          !done.has(lesson.id)
         ) {
           await handleComplete(
             lesson
           );
         }
       } catch (err) {
-        setTestMessage({
+        setTestMsg({
           lessonId:
             lesson.id,
 
@@ -406,13 +475,13 @@ export default function CoursePage({ params }) {
 
     window.addEventListener(
       "message",
-      handleMessage
+      onMessage
     );
 
     return () => {
       window.removeEventListener(
         "message",
-        handleMessage
+        onMessage
       );
     };
   }, [
@@ -422,15 +491,20 @@ export default function CoursePage({ params }) {
     handleComplete,
   ]);
 
-  /* ============================================================
+  /* =========================================================
      FULLSCREEN
-  ============================================================ */
+  ========================================================= */
 
-  const openFullscreen =
-    useCallback((lessonId) => {
+  const enterFullscreen =
+    useCallback(async (lessonId) => {
       setFullscreenLesson(
         lessonId
       );
+
+      /*
+       * React render qilishi uchun
+       * keyingi frame'da elementni olamiz.
+       */
 
       requestAnimationFrame(
         async () => {
@@ -442,13 +516,24 @@ export default function CoursePage({ params }) {
           try {
             if (
               document.fullscreenEnabled &&
+              !document.fullscreenElement &&
               element.requestFullscreen
             ) {
-              await element.requestFullscreen();
+              await element.requestFullscreen(
+                {
+                  navigationUI:
+                    "hide",
+                }
+              );
             }
           } catch (err) {
+            /*
+             * Browser Fullscreen API
+             * bloklansa ham CSS fullscreen
+             * ishlaydi.
+             */
             console.warn(
-              "Fullscreen ishlamadi:",
+              "Browser fullscreen ishlamadi:",
               err
             );
           }
@@ -456,18 +541,17 @@ export default function CoursePage({ params }) {
       );
     }, []);
 
-  const closeFullscreen =
+  const exitFullscreen =
     useCallback(async () => {
       try {
         if (
-          document.fullscreenElement &&
-          document.exitFullscreen
+          document.fullscreenElement
         ) {
           await document.exitFullscreen();
         }
       } catch (err) {
         console.warn(
-          "Fullscreen yopilmadi:",
+          "Fullscreen exit:",
           err
         );
       }
@@ -477,41 +561,62 @@ export default function CoursePage({ params }) {
       );
     }, []);
 
-  /* ============================================================
-     ESC -> FULLSCREEN EXIT
-  ============================================================ */
+  useEffect(() => {
+    const onFullscreenChange =
+      () => {
+        if (
+          !document.fullscreenElement &&
+          fullscreenLesson
+        ) {
+          /*
+           * CSS fullscreen emas,
+           * faqat browser fullscreen chiqdi.
+           */
+        }
+      };
+
+    document.addEventListener(
+      "fullscreenchange",
+      onFullscreenChange
+    );
+
+    return () => {
+      document.removeEventListener(
+        "fullscreenchange",
+        onFullscreenChange
+      );
+    };
+  }, [fullscreenLesson]);
 
   useEffect(() => {
-    const handleKeyDown = (
-      event
-    ) => {
+    const onKeyDown = (event) => {
       if (
         event.key === "Escape" &&
         fullscreenLesson
       ) {
-        closeFullscreen();
+        exitFullscreen();
       }
     };
 
     window.addEventListener(
       "keydown",
-      handleKeyDown
+      onKeyDown
     );
 
     return () => {
       window.removeEventListener(
         "keydown",
-        handleKeyDown
+        onKeyDown
       );
     };
   }, [
     fullscreenLesson,
-    closeFullscreen,
+    exitFullscreen,
   ]);
 
-  /* ============================================================
+  /* =========================================================
      PROGRESS
-  ============================================================ */
+  ========================================================= */
 
   const doneCount =
     lessons.filter((lesson) =>
@@ -527,16 +632,15 @@ export default function CoursePage({ params }) {
         )
       : 0;
 
-  const remaining =
-    Math.max(
-      lessons.length -
-        doneCount,
-      0
-    );
+  const remaining = Math.max(
+    lessons.length -
+      doneCount,
+    0
+  );
 
-  /* ============================================================
+  /* =========================================================
      LOADING
-  ============================================================ */
+  ========================================================= */
 
   if (
     loading &&
@@ -551,15 +655,14 @@ export default function CoursePage({ params }) {
     );
   }
 
-  /* ============================================================
+  /* =========================================================
      NOT FOUND
-  ============================================================ */
+  ========================================================= */
 
   if (!course) {
     return (
       <main className="course-page">
         <section className="course-not-found">
-
           <div className="course-not-found-icon">
             📚
           </div>
@@ -580,22 +683,17 @@ export default function CoursePage({ params }) {
           >
             O‘quv sahifamga qaytish
           </Link>
-
         </section>
       </main>
     );
   }
 
-  /* ============================================================
-     PAGE
-  ============================================================ */
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
     <>
-      {/* ========================================================
-          MODEL-VIEWER
-      ======================================================== */}
-
       <Script
         src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"
         type="module"
@@ -603,9 +701,9 @@ export default function CoursePage({ params }) {
 
       <main className="course-page">
 
-        {/* ======================================================
+        {/* =====================================================
             BREADCRUMB
-        ====================================================== */}
+        ===================================================== */}
 
         <nav
           className="course-breadcrumb"
@@ -624,9 +722,9 @@ export default function CoursePage({ params }) {
           </span>
         </nav>
 
-        {/* ======================================================
-            COURSE HERO
-        ====================================================== */}
+        {/* =====================================================
+            HERO
+        ===================================================== */}
 
         <section className="course-hero">
 
@@ -727,9 +825,9 @@ export default function CoursePage({ params }) {
 
         </section>
 
-        {/* ======================================================
+        {/* =====================================================
             ERROR
-        ====================================================== */}
+        ===================================================== */}
 
         {error && (
           <div
@@ -738,15 +836,13 @@ export default function CoursePage({ params }) {
           >
             <span>!</span>
 
-            <p>
-              {error}
-            </p>
+            <p>{error}</p>
           </div>
         )}
 
-        {/* ======================================================
+        {/* =====================================================
             REWARD
-        ====================================================== */}
+        ===================================================== */}
 
         {reward && (
           <div
@@ -787,9 +883,9 @@ export default function CoursePage({ params }) {
           </div>
         )}
 
-        {/* ======================================================
+        {/* =====================================================
             PROGRESS
-        ====================================================== */}
+        ===================================================== */}
 
         {enrolled &&
           lessons.length > 0 && (
@@ -830,8 +926,7 @@ export default function CoursePage({ params }) {
               >
                 <span
                   style={{
-                    width:
-                      `${pct}%`,
+                    width: `${pct}%`,
                   }}
                 />
               </div>
@@ -860,9 +955,9 @@ export default function CoursePage({ params }) {
             </section>
           )}
 
-        {/* ======================================================
+        {/* =====================================================
             LESSONS
-        ====================================================== */}
+        ===================================================== */}
 
         <section className="lessons-section">
 
@@ -899,9 +994,7 @@ export default function CoursePage({ params }) {
 
           </div>
 
-          {/* ====================================================
-              EMPTY
-          ==================================================== */}
+          {/* EMPTY */}
 
           {lessons.length === 0 ? (
             <div className="empty-lessons">
@@ -971,9 +1064,9 @@ export default function CoursePage({ params }) {
                       }`}
                     >
 
-                      {/* ==========================================
+                      {/* =================================================
                           LESSON HEADER
-                      ========================================== */}
+                      ================================================= */}
 
                       <div className="lesson-card-main">
 
@@ -1041,10 +1134,7 @@ export default function CoursePage({ params }) {
                                   : lesson.lesson_type ===
                                     "ar"
                                   ? "🧊 AR / 3D"
-                                  : (
-                                      lesson.lesson_type ||
-                                      "media"
-                                    ).toUpperCase()}
+                                  : lesson.lesson_type.toUpperCase()}
                               </span>
                             )}
 
@@ -1062,16 +1152,12 @@ export default function CoursePage({ params }) {
 
                         </div>
 
-                        {/* =========================================
-                            ACTION
-                        ========================================= */}
+                        {/* ACTION */}
 
                         <div className="lesson-card-action">
 
                           {enrolled ? (
-
                             hasContent ? (
-
                               <button
                                 type="button"
                                 className={
@@ -1091,15 +1177,11 @@ export default function CoursePage({ params }) {
                                   ? "Qayta ko‘rish"
                                   : "Boshlash"}
                               </button>
-
                             ) : isDone ? (
-
                               <span className="lesson-finished">
                                 ✓ Tugatilgan
                               </span>
-
                             ) : (
-
                               <button
                                 type="button"
                                 className="btn btn-primary btn-sm"
@@ -1114,36 +1196,26 @@ export default function CoursePage({ params }) {
                                   ? "Saqlanmoqda..."
                                   : "Tugatdim"}
                               </button>
-
                             )
-
                           ) : (
-
                             <span className="lesson-finished">
                               🔒
                             </span>
-
                           )}
 
                         </div>
 
                       </div>
 
-                      {/* ==================================================
-                          INLINE LESSON CONTENT
-
-                          MUHIM:
-                          Bu yerda boshqa URL'ga o'tilmaydi.
-                          Lesson shu page ichida ochiladi.
-                      ================================================== */}
+                      {/* =================================================
+                          LESSON CONTENT
+                      ================================================= */}
 
                       {enrolled &&
                         isOpen && (
                           <div className="lesson-inline-content">
 
-                            {/* =========================================
-                                TEXT
-                            ========================================= */}
+                            {/* MA'RUZA */}
 
                             {lesson.content && (
                               <section className="lesson-inline-block">
@@ -1155,7 +1227,7 @@ export default function CoursePage({ params }) {
                                   </span>
 
                                   <h4>
-                                    Dars materiali
+                                    Ma’ruza matni
                                   </h4>
 
                                 </div>
@@ -1167,9 +1239,7 @@ export default function CoursePage({ params }) {
                               </section>
                             )}
 
-                            {/* =========================================
-                                3D / AR MODEL
-                            ========================================= */}
+                            {/* 3D MODEL */}
 
                             {lesson.model_url && (
                               <section className="lesson-inline-block">
@@ -1181,21 +1251,21 @@ export default function CoursePage({ params }) {
                                   </span>
 
                                   <h4>
-                                    3D / AR model
+                                    3D model
                                   </h4>
 
                                 </div>
 
                                 <div
-                                  ref={
-                                    isFullscreen
-                                      ? fullscreenRef
-                                      : null
-                                  }
                                   className={
                                     isFullscreen
                                       ? "model-viewer-container lesson-viewer-fullscreen"
                                       : "model-viewer-container"
+                                  }
+                                  ref={
+                                    isFullscreen
+                                      ? fullscreenRef
+                                      : null
                                   }
                                 >
 
@@ -1212,18 +1282,17 @@ export default function CoursePage({ params }) {
                                     ar-modes="webxr scene-viewer quick-look"
                                     shadow-intensity="1"
                                     exposure="1"
-                                    camera-orbit="0deg 75deg 2.5m"
                                     style={{
                                       width:
                                         "100%",
                                       height:
                                         isFullscreen
                                           ? "100dvh"
-                                          : "500px",
+                                          : 480,
                                       background:
                                         "#eef4ee",
                                       borderRadius:
-                                        "16px",
+                                        16,
                                     }}
                                   />
 
@@ -1232,8 +1301,8 @@ export default function CoursePage({ params }) {
                                     className="btn btn-primary btn-sm lesson-fullscreen-btn"
                                     onClick={() =>
                                       isFullscreen
-                                        ? closeFullscreen()
-                                        : openFullscreen(
+                                        ? exitFullscreen()
+                                        : enterFullscreen(
                                             lesson.id
                                           )
                                     }
@@ -1246,10 +1315,11 @@ export default function CoursePage({ params }) {
                                 </div>
 
                                 <p className="viewer-help">
-                                  Modelni sichqoncha
-                                  yoki barmoq bilan
-                                  aylantiring.
-                                  AR tugmasi orqali
+                                  Modelni barmoq
+                                  yoki sichqoncha
+                                  bilan aylantiring.
+                                  Telefoningiz AR'ni
+                                  qo‘llab-quvvatlasa,
                                   modelni haqiqiy
                                   muhitda ko‘rishingiz
                                   mumkin.
@@ -1258,9 +1328,7 @@ export default function CoursePage({ params }) {
                               </section>
                             )}
 
-                            {/* =========================================
-                                EMBED / VR / CAMERA / AR
-                            ========================================= */}
+                            {/* EMBED / VR */}
 
                             {lesson.embed_url && (
                               <section className="lesson-inline-block">
@@ -1271,41 +1339,29 @@ export default function CoursePage({ params }) {
                                     {lesson.lesson_type ===
                                     "vr"
                                       ? "🥽"
-                                      : "🔬"}
+                                      : "🔍"}
                                   </span>
 
                                   <h4>
                                     {lesson.lesson_type ===
                                     "vr"
-                                      ? "VR / interaktiv muhit"
+                                      ? "VR muhit"
                                       : "Interaktiv modul"}
                                   </h4>
 
                                 </div>
 
                                 <div
-                                  ref={
-                                    isFullscreen
-                                      ? fullscreenRef
-                                      : null
-                                  }
                                   className={
                                     isFullscreen
                                       ? "interactive-viewer lesson-viewer-fullscreen"
                                       : "interactive-viewer"
                                   }
-                                  style={{
-                                    position:
-                                      "relative",
-                                    width:
-                                      "100%",
-                                    overflow:
-                                      "hidden",
-                                    borderRadius:
-                                      "16px",
-                                    background:
-                                      "#111",
-                                  }}
+                                  ref={
+                                    isFullscreen
+                                      ? fullscreenRef
+                                      : null
+                                  }
                                 >
 
                                   <iframe
@@ -1315,50 +1371,22 @@ export default function CoursePage({ params }) {
                                     src={
                                       lesson.embed_url
                                     }
-
-                                    /*
-                                     * MUHIM:
-                                     * Kamera, mikrofon,
-                                     * WebXR va sensorlar
-                                     * uchun ruxsat.
-                                     */
-
                                     allow="
                                       autoplay *;
                                       fullscreen *;
+                                      xr-spatial-tracking *;
                                       camera *;
                                       microphone *;
-                                      xr-spatial-tracking *;
                                       accelerometer *;
                                       gyroscope *;
                                       gamepad *;
                                       web-share *
                                     "
-
                                     allowFullScreen
-
                                     webkitallowfullscreen="true"
-
                                     mozallowfullscreen="true"
-
-                                    loading="eager"
-
+                                    loading="lazy"
                                     referrerPolicy="strict-origin-when-cross-origin"
-
-                                    style={{
-                                      width:
-                                        "100%",
-                                      height:
-                                        isFullscreen
-                                          ? "100dvh"
-                                          : "650px",
-                                      border:
-                                        "0",
-                                      display:
-                                        "block",
-                                      background:
-                                        "#111",
-                                    }}
                                   />
 
                                   <button
@@ -1366,8 +1394,8 @@ export default function CoursePage({ params }) {
                                     className="btn btn-primary btn-sm lesson-fullscreen-btn"
                                     onClick={() =>
                                       isFullscreen
-                                        ? closeFullscreen()
-                                        : openFullscreen(
+                                        ? exitFullscreen()
+                                        : enterFullscreen(
                                             lesson.id
                                           )
                                     }
@@ -1379,33 +1407,51 @@ export default function CoursePage({ params }) {
 
                                 </div>
 
-                                <p className="viewer-help">
-                                  {lesson.lesson_type ===
-                                  "vr"
-                                    ? "VR uchun WebXR qo‘llab-quvvatlaydigan qurilma va brauzer kerak. Meta Quest kabi VR qurilmalarida Quest Browser orqali ochish tavsiya etiladi."
-                                    : "Kamera yoki AR funksiyasi ishlashi uchun brauzerda kamera ruxsatini bering."
-                                  }
-                                </p>
+                                {lesson.lesson_type ===
+                                  "vr" && (
+                                  <p className="viewer-help">
+                                    VR ko‘zoynakda
+                                    ko‘rish uchun
+                                    modulni to‘liq
+                                    ekranga oching va
+                                    VR rejimini
+                                    tanlang.
+                                  </p>
+                                )}
 
                               </section>
                             )}
 
-                            {/* =========================================
-                                TEST
-                            ========================================= */}
+                            {/* TEST */}
 
                             {lesson.test_url && (
                               <section className="lesson-inline-block">
 
-                                <div className="lesson-inline-heading">
+                                <div className="lesson-test-heading">
 
-                                  <span>
-                                    ✏️
-                                  </span>
+                                  <div className="lesson-inline-heading">
 
-                                  <h4>
-                                    Mavzu bo‘yicha test
-                                  </h4>
+                                    <span>
+                                      ✏️
+                                    </span>
+
+                                    <h4>
+                                      Mavzu bo‘yicha test
+                                    </h4>
+
+                                  </div>
+
+                                  <a
+                                    href={
+                                      lesson.test_url
+                                    }
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn-ghost btn-sm"
+                                  >
+                                    <DownloadIcon />
+                                    Yuklab olish
+                                  </a>
 
                                 </div>
 
@@ -1416,60 +1462,36 @@ export default function CoursePage({ params }) {
                                     src={
                                       lesson.test_url
                                     }
-
+                                    loading="lazy"
                                     allow="
                                       fullscreen *;
                                       camera *;
-                                      microphone *
+                                      microphone *;
                                     "
-
                                     allowFullScreen
-
-                                    loading="eager"
-
-                                    referrerPolicy="strict-origin-when-cross-origin"
-
-                                    style={{
-                                      width:
-                                        "100%",
-                                      minHeight:
-                                        "600px",
-                                      border:
-                                        "0",
-                                      borderRadius:
-                                        "16px",
-                                      display:
-                                        "block",
-                                    }}
                                   />
 
                                 </div>
 
-                                {testMessage?.lessonId ===
+                                {testMsg?.lessonId ===
                                   lesson.id && (
                                   <p
                                     className="form-ok lesson-test-message"
                                     role="status"
                                   >
-                                    {
-                                      testMessage.text
-                                    }
+                                    {testMsg.text}
                                   </p>
                                 )}
 
                               </section>
                             )}
 
-                            {/* =========================================
-                                COMPLETE BUTTON
-                            ========================================= */}
+                            {/* COMPLETE */}
 
                             <div className="lesson-complete-bar">
 
                               {!isDone ? (
-
                                 <>
-
                                   <button
                                     type="button"
                                     className="btn btn-primary btn-lg"
@@ -1488,22 +1510,18 @@ export default function CoursePage({ params }) {
                                   {lesson.test_url && (
                                     <p>
                                       Testni
-                                      topshirgandan
-                                      so‘ng natija
-                                      avtomatik
-                                      saqlanadi.
+                                      topshirsangiz,
+                                      dars avtomatik
+                                      tugatilgan deb
+                                      belgilanadi.
                                     </p>
                                   )}
-
                                 </>
-
                               ) : (
-
                                 <div className="lesson-complete-success">
                                   ✓ Bu dars
                                   tugatilgan
                                 </div>
-
                               )}
 
                             </div>
@@ -1519,17 +1537,15 @@ export default function CoursePage({ params }) {
             </div>
           )}
 
-          {/* ======================================================
+          {/* =====================================================
               NOT ENROLLED
-          ====================================================== */}
+          ===================================================== */}
 
           {!enrolled &&
             lessons.length > 0 && (
               <div className="course-enroll-note">
 
-                <span>
-                  🔒
-                </span>
+                <span>🔒</span>
 
                 <div>
 
@@ -1539,12 +1555,10 @@ export default function CoursePage({ params }) {
                   </strong>
 
                   <p>
-                    Kursga yozilgandan
-                    so‘ng barcha
-                    interaktiv darslar,
+                    Kursga yozilgandan so‘ng
+                    barcha interaktiv darslar,
                     testlar va AR/VR
-                    materiallardan
-                    foydalanishingiz
+                    materiallardan foydalanishingiz
                     mumkin.
                   </p>
 
