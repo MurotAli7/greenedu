@@ -8,17 +8,31 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import { createClient } from "@/lib/supabase/client";
+import { useCachedApi } from "@/lib/api/useCached";
 
 const UserDataContext = createContext(null);
 
 export function UserDataProvider({ children }) {
   const supabase = useMemo(() => createClient(), []);
 
+  /* =========================================================
+     USER
+     ========================================================= */
+
   const [user, setUser] = useState(null);
+
+  /* =========================================================
+     PROFILE
+     ========================================================= */
 
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
+
+  /* =========================================================
+     NOTIFICATIONS
+     ========================================================= */
 
   const [unread, setUnread] = useState(0);
 
@@ -26,12 +40,57 @@ export function UserDataProvider({ children }) {
   const [notificationsLoaded, setNotificationsLoaded] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
 
+  /* =========================================================
+     DASHBOARD
+     
+     Dashboard ma'lumotlari markaziy cache orqali olinadi.
+     
+     Muhim:
+     - cache bo'lsa darhol ko'rinadi
+     - eski cache bo'lsa fonda yangilanadi
+     - boshqa sahifalar ham shu ma'lumotdan foydalanishi mumkin
+     ========================================================= */
+
+  const {
+    data: dashboard,
+    loading: dashboardLoading,
+    error: dashboardError,
+    refresh: refreshDashboard,
+    mutate: mutateDashboard,
+  } = useCachedApi("/api/user/dashboard");
+
   /*
-   * =========================================================
-   * USER + PROFILE + UNREAD
-   * Bir marta yuklanadi.
-   * =========================================================
+   * Dashboard ichidagi qismlarni alohida chiqaramiz.
+   *
+   * Keyingi bosqichda API ni ham shu qismlarga ajratamiz:
+   * stats
+   * enrolled
+   * library
+   * badges
    */
+
+  const dashboardStats = dashboard?.stats || null;
+  const enrolledCourses = dashboard?.enrolled || [];
+  const libraryCourses = dashboard?.library || [];
+  const badges = dashboard?.badges || [];
+
+  const firstName =
+    dashboard?.firstName ||
+    profile?.full_name?.trim()?.split(/\s+/)?.[0] ||
+    "";
+
+  const avatarUrl =
+    dashboard?.avatarUrl ||
+    profile?.avatar_url ||
+    "";
+
+  /* =========================================================
+     USER + PROFILE + UNREAD
+     
+     Birinchi bosqichda userni aniqlaymiz.
+     Profile va unread parallel yuklanadi.
+     ========================================================= */
+
   useEffect(() => {
     let cancelled = false;
 
@@ -64,7 +123,7 @@ export function UserDataProvider({ children }) {
         setUser(currentUser);
 
         /*
-         * Profile va unread bir vaqtda yuklanadi.
+         * Profile va unread bir vaqtda.
          */
         const [profileResult, unreadResult] = await Promise.all([
           supabase
@@ -103,7 +162,10 @@ export function UserDataProvider({ children }) {
           setUnread(unreadResult.count || 0);
         }
       } catch (error) {
-        console.error("UserDataProvider xatoligi:", error);
+        console.error(
+          "UserDataProvider xatoligi:",
+          error
+        );
       } finally {
         if (!cancelled) {
           setProfileLoading(false);
@@ -118,14 +180,50 @@ export function UserDataProvider({ children }) {
     };
   }, [supabase]);
 
-  /*
-   * =========================================================
-   * NOTIFICATIONS
-   *
-   * Faqat Notifications sahifasi ochilganda yuklanadi.
-   * Bir marta yuklangandan keyin qayta fetch qilmaydi.
-   * =========================================================
-   */
+  /* =========================================================
+     BACKGROUND PRELOAD
+     
+     UserDataProvider mavjud bo'lgan paytdan dashboard
+     cache'ga tushishni boshlaydi.
+     
+     Bu degani:
+     
+     /user
+        ↓
+     Provider ishga tushadi
+        ↓
+     dashboard fetch
+        ↓
+     cache
+        ↓
+     page undan foydalanadi
+     
+     Keyingi bosqichda shu yerga:
+     - kurslar
+     - notifications
+     - course details
+     - settings
+     
+     preload qo'shamiz.
+     ========================================================= */
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    /*
+     * dashboard useCachedApi tomonidan avtomatik fetch qilinadi.
+     *
+     * Bu effect hozircha faqat arxitektura uchun.
+     * Keyingi bosqichda background preload manager shu yerda ishlaydi.
+     */
+  }, [user?.id]);
+
+  /* =========================================================
+     NOTIFICATIONS
+     
+     Faqat kerak bo'lganda yuklanadi.
+     ========================================================= */
+
   const loadNotifications = useCallback(
     async (force = false) => {
       if (!user?.id) return;
@@ -143,9 +241,13 @@ export function UserDataProvider({ children }) {
 
         const { data, error } = await supabase
           .from("notifications")
-          .select("id, title, body, type, read, created_at")
+          .select(
+            "id, title, body, type, read, created_at"
+          )
           .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
+          .order("created_at", {
+            ascending: false,
+          })
           .limit(100);
 
         if (error) {
@@ -153,6 +255,7 @@ export function UserDataProvider({ children }) {
             "Notifications olishda xatolik:",
             error
           );
+
           return;
         }
 
@@ -160,8 +263,7 @@ export function UserDataProvider({ children }) {
         setNotificationsLoaded(true);
 
         /*
-         * Notificationlar yuklanganda unread count ham
-         * aniq qilib olinadi.
+         * Aniq unread count.
          */
         const unreadCount = (data || []).filter(
           (item) => !item.read
@@ -185,17 +287,15 @@ export function UserDataProvider({ children }) {
     ]
   );
 
-  /*
-   * =========================================================
-   * BIRTA NOTIFICATIONNI READ QILISH
-   *
-   * Avval UI o'zgaradi.
-   * Keyin Supabase update qilinadi.
-   * =========================================================
-   */
+  /* =========================================================
+     BIRTA NOTIFICATIONNI READ QILISH
+     
+     Optimistic UI.
+     ========================================================= */
+
   const markOneRead = useCallback(
     async (notificationId) => {
-      if (!notificationId) return;
+      if (!notificationId || !user?.id) return;
 
       const target = notifications.find(
         (item) => item.id === notificationId
@@ -206,7 +306,7 @@ export function UserDataProvider({ children }) {
       }
 
       /*
-       * Optimistic update
+       * UI darhol o'zgaradi.
        */
       setNotifications((current) =>
         current.map((item) =>
@@ -216,7 +316,9 @@ export function UserDataProvider({ children }) {
         )
       );
 
-      setUnread((current) => Math.max(0, current - 1));
+      setUnread((current) =>
+        Math.max(0, current - 1)
+      );
 
       try {
         const { error } = await supabase
@@ -232,7 +334,7 @@ export function UserDataProvider({ children }) {
           );
 
           /*
-           * Xatolik bo'lsa UI ni qaytaramiz.
+           * Xatolik bo'lsa rollback.
            */
           setNotifications((current) =>
             current.map((item) =>
@@ -261,11 +363,10 @@ export function UserDataProvider({ children }) {
     [notifications, supabase, user?.id]
   );
 
-  /*
-   * =========================================================
-   * HAMMASINI READ QILISH
-   * =========================================================
-   */
+  /* =========================================================
+     HAMMASINI READ QILISH
+     ========================================================= */
+
   const markAllRead = useCallback(async () => {
     if (!user?.id) return;
 
@@ -279,7 +380,7 @@ export function UserDataProvider({ children }) {
     }
 
     /*
-     * Optimistic UI
+     * Optimistic UI.
      */
     setNotifications((current) =>
       current.map((item) => ({
@@ -303,13 +404,11 @@ export function UserDataProvider({ children }) {
           error
         );
 
-        /*
-         * Xatolik bo'lsa qayta yuklaymiz.
-         */
         await loadNotifications(true);
       }
     } catch (error) {
       console.error(error);
+
       await loadNotifications(true);
     }
   }, [
@@ -319,13 +418,10 @@ export function UserDataProvider({ children }) {
     loadNotifications,
   ]);
 
-  /*
-   * =========================================================
-   * PROFILE YANGILASH
-   *
-   * Settings sahifasidan foydalanadi.
-   * =========================================================
-   */
+  /* =========================================================
+     PROFILE YANGILASH
+     ========================================================= */
+
   const updateProfile = useCallback((patch) => {
     setProfile((current) => ({
       ...(current || {}),
@@ -333,20 +429,58 @@ export function UserDataProvider({ children }) {
     }));
   }, []);
 
+  /* =========================================================
+     DASHBOARD YANGILASH HELPERS
+     
+     Boshqa componentlar dashboardni qayta fetch qilmasdan
+     lokal cache/state ni yangilashi mumkin.
+     ========================================================= */
+
+  const updateDashboard = useCallback(
+    (updater) => {
+      mutateDashboard(updater);
+    },
+    [mutateDashboard]
+  );
+
   /*
-   * =========================================================
-   * CONTEXT VALUE
-   * =========================================================
+   * Dashboardni qo'lda yangilash.
    */
+  const reloadDashboard = useCallback(() => {
+    return refreshDashboard();
+  }, [refreshDashboard]);
+
+  /* =========================================================
+     CONTEXT VALUE
+     ========================================================= */
+
   const value = useMemo(
     () => ({
+      /* USER */
       user,
 
+      /* PROFILE */
       profile,
       profileLoading,
 
-      unread,
+      /* DASHBOARD */
+      dashboard,
+      dashboardLoading,
+      dashboardError,
 
+      dashboardStats,
+      enrolledCourses,
+      libraryCourses,
+      badges,
+
+      firstName,
+      avatarUrl,
+
+      refreshDashboard: reloadDashboard,
+      updateDashboard,
+
+      /* NOTIFICATIONS */
+      unread,
       notifications,
       notificationsLoaded,
       notificationsLoading,
@@ -355,19 +489,39 @@ export function UserDataProvider({ children }) {
       markOneRead,
       markAllRead,
 
+      /* PROFILE UPDATE */
       updateProfile,
     }),
     [
       user,
+
       profile,
       profileLoading,
+
+      dashboard,
+      dashboardLoading,
+      dashboardError,
+
+      dashboardStats,
+      enrolledCourses,
+      libraryCourses,
+      badges,
+
+      firstName,
+      avatarUrl,
+
+      reloadDashboard,
+      updateDashboard,
+
       unread,
       notifications,
       notificationsLoaded,
       notificationsLoading,
+
       loadNotifications,
       markOneRead,
       markAllRead,
+
       updateProfile,
     ]
   );
@@ -379,11 +533,10 @@ export function UserDataProvider({ children }) {
   );
 }
 
-/*
- * =========================================================
- * HOOK
- * =========================================================
- */
+/* =========================================================
+   HOOK
+   ========================================================= */
+
 export function useUserData() {
   const context = useContext(UserDataContext);
 
