@@ -1,146 +1,100 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+
+import { useUserData } from "../UserDataProvider";
+
 import { timeAgo } from "@/lib/format";
+
 import {
   TrophyIcon,
   BellIcon,
   CheckIcon,
 } from "@/components/Icons";
+
 import {
   SkeletonPageHead,
   SkeletonTable,
 } from "@/components/Skeleton";
 
 export default function NotificationsPage() {
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState([]);
-  const [userId, setUserId] = useState(null);
+  const {
+    user,
+    notifications,
+    notificationsLoaded,
+    notificationsLoading,
+    loadNotifications,
+    markOneRead,
+    markAllRead,
+  } = useUserData();
+
   const [tab, setTab] = useState("all");
 
+  /*
+   * Notifications faqat bir marta yuklanadi.
+   *
+   * UserDataProvider layout ichida turgani uchun:
+   *
+   * /user
+   * /user/notifications
+   * /user/settings
+   *
+   * orasida provider qayta yaratilmaydi.
+   */
   useEffect(() => {
-    const supabase = createClient();
+    if (!user?.id) return;
 
-    (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    if (notificationsLoaded) return;
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+    if (notificationsLoading) return;
 
-      setUserId(user.id);
+    loadNotifications();
+  }, [
+    user?.id,
+    notificationsLoaded,
+    notificationsLoading,
+    loadNotifications,
+  ]);
 
-      const { data } = await supabase
-        .from("notifications")
-        .select(
-          "id, title, body, type, read, created_at"
-        )
-        .eq("user_id", user.id)
-        .order("created_at", {
-          ascending: false,
-        })
-        .limit(100);
+  const items = notifications || [];
 
-      setItems(data || []);
-      setLoading(false);
-    })();
-  }, []);
+  const loading =
+    notificationsLoading && !notificationsLoaded;
 
-  const markAllRead = async () => {
-    if (!userId) return;
+  /*
+   * O'qilmagan xabarlar soni
+   */
+  const unreadCount = useMemo(() => {
+    return items.filter(
+      (notification) => !notification.read
+    ).length;
+  }, [items]);
 
-    const supabase = createClient();
-
-    await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("user_id", userId)
-      .eq("read", false);
-
-    setItems((prev) =>
-      prev.map((n) => ({
-        ...n,
-        read: true,
-      }))
-    );
-
-    window.dispatchEvent(
-      new CustomEvent(
-        "greenedu:notifications-read",
-        {
-          detail: {
-            unread: 0,
-          },
-        }
-      )
-    );
-  };
-
-  const markOneRead = async (id) => {
-    const supabase = createClient();
-
-    await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("id", id);
-
-    setItems((prev) => {
-      const next = prev.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              read: true,
-            }
-          : n
-      );
-
-      window.dispatchEvent(
-        new CustomEvent(
-          "greenedu:notifications-read",
-          {
-            detail: {
-              unread: next.filter(
-                (n) => !n.read
-              ).length,
-            },
-          }
-        )
-      );
-
-      return next;
-    });
-  };
-
-  const unreadCount = useMemo(
-    () =>
-      items.filter(
-        (notification) =>
-          !notification.read
-      ).length,
-    [items]
-  );
-
+  /*
+   * Tab bo'yicha ko'rsatiladigan xabarlar
+   */
   const shown = useMemo(() => {
     if (tab === "unread") {
       return items.filter(
-        (notification) =>
-          !notification.read
+        (notification) => !notification.read
       );
     }
 
     return items;
   }, [items, tab]);
 
+  /*
+   * Birinchi yuklanish paytidagi skeleton
+   */
   if (loading) {
     return (
       <>
         <SkeletonPageHead />
-        <SkeletonTable rows={4} cols={3} />
+
+        <SkeletonTable
+          rows={4}
+          cols={3}
+        />
       </>
     );
   }
@@ -185,6 +139,7 @@ export default function NotificationsPage() {
             onClick={markAllRead}
           >
             <CheckIcon size={16} />
+
             <span>
               Hammasini o‘qilgan deb belgilash
             </span>
@@ -200,6 +155,7 @@ export default function NotificationsPage() {
       <section className="notifications-summary">
 
         <div className="notifications-summary-item">
+
           <span className="notifications-summary-icon">
             🔔
           </span>
@@ -213,11 +169,13 @@ export default function NotificationsPage() {
               Jami xabar
             </span>
           </div>
+
         </div>
 
         <div className="notifications-summary-divider" />
 
         <div className="notifications-summary-item">
+
           <span className="notifications-summary-icon unread-icon">
             ●
           </span>
@@ -231,11 +189,13 @@ export default function NotificationsPage() {
               O‘qilmagan
             </span>
           </div>
+
         </div>
 
         <div className="notifications-summary-divider" />
 
         <div className="notifications-summary-item">
+
           <span className="notifications-summary-icon">
             ✓
           </span>
@@ -249,6 +209,7 @@ export default function NotificationsPage() {
               O‘qilgan
             </span>
           </div>
+
         </div>
 
       </section>
@@ -287,12 +248,8 @@ export default function NotificationsPage() {
                 ? "notifications-tab-active"
                 : ""
             }`}
-            onClick={() =>
-              setTab("unread")
-            }
-            aria-pressed={
-              tab === "unread"
-            }
+            onClick={() => setTab("unread")}
+            aria-pressed={tab === "unread"}
           >
             <span>
               O‘qilmagan
@@ -323,6 +280,7 @@ export default function NotificationsPage() {
       >
 
         {shown.length === 0 ? (
+
           <div className="notifications-empty">
 
             <div className="notifications-empty-icon">
@@ -344,14 +302,15 @@ export default function NotificationsPage() {
             </p>
 
           </div>
+
         ) : (
+
           <div className="notifications-list">
 
             {shown.map((notification) => {
 
               const isBadge =
-                notification.type ===
-                "badge";
+                notification.type === "badge";
 
               const isUnread =
                 !notification.read;
@@ -377,15 +336,17 @@ export default function NotificationsPage() {
                       : undefined
                   }
                   tabIndex={
-                    isUnread ? 0 : undefined
+                    isUnread
+                      ? 0
+                      : undefined
                   }
                   onKeyDown={(event) => {
                     if (
                       isUnread &&
-                      (event.key ===
-                        "Enter" ||
-                        event.key ===
-                          " ")
+                      (
+                        event.key === "Enter" ||
+                        event.key === " "
+                      )
                     ) {
                       event.preventDefault();
 
@@ -479,5 +440,3 @@ export default function NotificationsPage() {
     </main>
   );
 }
-
-

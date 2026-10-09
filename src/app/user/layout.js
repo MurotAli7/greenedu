@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+
 import { createClient } from "@/lib/supabase/client";
+import { UserDataProvider, useUserData } from "./UserDataProvider";
 
 import {
   LeafIcon,
@@ -35,114 +37,91 @@ const NAV = [
   },
 ];
 
+/*
+ * =========================================================
+ * USER LAYOUT
+ * =========================================================
+ *
+ * UserDataProvider barcha umumiy user ma'lumotlarini saqlaydi.
+ * Shu sababli profile/unread har bir sahifada qayta fetch qilinmaydi.
+ */
+
 export default function UserLayout({ children }) {
+  return (
+    <UserDataProvider>
+      <UserLayoutContent>{children}</UserLayoutContent>
+    </UserDataProvider>
+  );
+}
+
+/*
+ * =========================================================
+ * USER LAYOUT CONTENT
+ * =========================================================
+ */
+
+function UserLayoutContent({ children }) {
   const pathname = usePathname();
   const router = useRouter();
 
   const supabase = useMemo(() => createClient(), []);
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [profile, setProfile] = useState({
-    fullName: "",
-    avatarUrl: "",
-  });
+  /*
+   * Provider'dan umumiy ma'lumotlarni olamiz.
+   *
+   * Bu ma'lumotlar UserDataProvider ichida bir marta yuklanadi.
+   */
+  const {
+    user,
+    profile,
+    profileLoading,
+    unread,
+    loadNotifications,
+    updateProfile,
+  } = useUserData();
 
-  const [unread, setUnread] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const closeSidebar = () => {
-    setSidebarOpen(false);
-  };
-
-  const toggleSidebar = () => {
-    setSidebarOpen((prev) => !prev);
-  };
-
   /*
-   * Profil + notification count
-   * Bitta getUser va ikkala query parallel ishlaydi.
+   * =========================================================
+   * AUTH REDIRECT
+   * =========================================================
+   *
+   * UserDataProvider userni tekshiradi.
+   * Agar user bo'lmasa login sahifasiga yuboramiz.
    */
   useEffect(() => {
-    let cancelled = false;
+    if (profileLoading) return;
 
-    async function loadUserData() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (cancelled) return;
-
-        if (!user) {
-          setLoading(false);
-          router.replace("/login");
-          return;
-        }
-
-        const [profileRes, unreadRes] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select("full_name, avatar_url")
-            .eq("id", user.id)
-            .single(),
-
-          supabase
-            .from("notifications")
-            .select("id", {
-              count: "exact",
-              head: true,
-            })
-            .eq("user_id", user.id)
-            .eq("read", false),
-        ]);
-
-        if (cancelled) return;
-
-        setProfile({
-          fullName:
-            profileRes.data?.full_name ||
-            user.user_metadata?.full_name ||
-            user.email ||
-            "Foydalanuvchi",
-
-          avatarUrl: profileRes.data?.avatar_url || "",
-        });
-
-        setUnread(unreadRes.count || 0);
-      } catch {
-        if (!cancelled) {
-          setProfile({
-            fullName: "Foydalanuvchi",
-            avatarUrl: "",
-          });
-
-          setUnread(0);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    if (!user) {
+      router.replace("/login");
     }
-
-    loadUserData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase, router]);
+  }, [user, profileLoading, router]);
 
   /*
-   * Notification sahifasidan keladigan event.
+   * =========================================================
+   * NOTIFICATION EVENT
+   * =========================================================
+   *
+   * Eski Notifications sahifasi:
+   * window.dispatchEvent(
+   *   new CustomEvent("greenedu:notifications-read", ...)
+   * )
+   *
+   * qilsa, layout provider orqali notificationlarni
+   * qayta sinxronlashtiradi.
    */
   useEffect(() => {
-    const onRead = (event) => {
-      const nextUnread = event.detail?.unread;
-
-      if (typeof nextUnread === "number") {
-        setUnread(nextUnread);
-      }
+    const onRead = async () => {
+      /*
+       * Notificationlar hali yuklanmagan bo'lsa,
+       * bu chaqiriq hech narsa qilmaydi.
+       *
+       * Agar yuklangan bo'lsa, yangilangan ma'lumotni
+       * Supabase'dan olib keladi.
+       */
+      await loadNotifications(true);
     };
 
     window.addEventListener(
@@ -156,26 +135,33 @@ export default function UserLayout({ children }) {
         onRead
       );
     };
-  }, []);
+  }, [loadNotifications]);
 
   /*
-   * Profile sahifasidan keladigan update event.
+   * =========================================================
+   * PROFILE EVENT
+   * =========================================================
+   *
+   * Settings sahifasi profilni o'zgartirganda,
+   * provider'dagi profile ham yangilanadi.
    */
   useEffect(() => {
     const onProfileUpdate = (event) => {
       const detail = event.detail || {};
 
-      setProfile((prev) => ({
-        fullName:
-          detail.fullName !== undefined
-            ? detail.fullName
-            : prev.fullName,
+      const patch = {};
 
-        avatarUrl:
-          detail.avatarUrl !== undefined
-            ? detail.avatarUrl
-            : prev.avatarUrl,
-      }));
+      if (detail.fullName !== undefined) {
+        patch.full_name = detail.fullName;
+      }
+
+      if (detail.avatarUrl !== undefined) {
+        patch.avatar_url = detail.avatarUrl;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        updateProfile(patch);
+      }
     };
 
     window.addEventListener(
@@ -189,12 +175,28 @@ export default function UserLayout({ children }) {
         onProfileUpdate
       );
     };
-  }, []);
+  }, [updateProfile]);
 
   /*
-   * Mobile sidebar:
-   * Escape bilan yopish.
+   * =========================================================
+   * MOBILE SIDEBAR
+   * =========================================================
    */
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+  };
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => !prev);
+  };
+
+  /*
+   * =========================================================
+   * ESCAPE BILAN SIDEBAR YOPISH
+   * =========================================================
+   */
+
   useEffect(() => {
     if (!sidebarOpen) return;
 
@@ -215,9 +217,11 @@ export default function UserLayout({ children }) {
   }, [sidebarOpen]);
 
   /*
-   * Sidebar ochilganda mobile'da
-   * asosiy sahifani scroll qilishni bloklaymiz.
+   * =========================================================
+   * MOBILE SCROLL LOCK
+   * =========================================================
    */
+
   useEffect(() => {
     if (!sidebarOpen) return;
 
@@ -231,11 +235,20 @@ export default function UserLayout({ children }) {
   }, [sidebarOpen]);
 
   /*
-   * Mobile'da route o'zgarganda sidebar yopiladi.
+   * =========================================================
+   * ROUTE O'ZGARGANDA SIDEBARNI YOPISH
+   * =========================================================
    */
+
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname]);
+
+  /*
+   * =========================================================
+   * LOGOUT
+   * =========================================================
+   */
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -244,24 +257,98 @@ export default function UserLayout({ children }) {
 
     try {
       await supabase.auth.signOut();
+
       router.replace("/login");
       router.refresh();
-    } catch {
+    } catch (error) {
+      console.error("Logout xatoligi:", error);
       setLoggingOut(false);
     }
   };
 
+  /*
+   * =========================================================
+   * PROFILE DATA
+   * =========================================================
+   */
+
+  const fullName =
+    profile?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.email ||
+    "Foydalanuvchi";
+
+  const avatarUrl = profile?.avatar_url || "";
+
   const firstName =
-    profile.fullName
-      ?.trim()
-      .split(/\s+/)[0] || "Do'stim";
+    fullName?.trim()?.split(/\s+/)[0] || "Do'stim";
 
   const avatarLetter =
-    profile.fullName?.trim()?.charAt(0)?.toUpperCase() || "G";
+    fullName?.trim()?.charAt(0)?.toUpperCase() || "G";
+
+  /*
+   * =========================================================
+   * LOADING
+   * =========================================================
+   *
+   * Faqat birinchi user/profile yuklanishida ishlaydi.
+   * Route almashganda qayta loading qilmaydi.
+   */
+
+  const initialLoading = profileLoading && !user;
+
+  /*
+   * =========================================================
+   * AUTH CHECK
+   * =========================================================
+   *
+   * Login redirect ishlayotgan paytda eski UI ko'rinib
+   * qolmasligi uchun kichik loading holati.
+   */
+
+  if (initialLoading) {
+    return (
+      <div className="shell">
+        <div className="shell-main">
+          <main
+            id="main-content"
+            className="shell-content"
+            tabIndex={-1}
+          >
+            <div
+              style={{
+                minHeight: "40vh",
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              <span>Yuklanmoqda...</span>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * User yo'q bo'lsa redirect kutilmoqda.
+   */
+  if (!user) {
+    return null;
+  }
+
+  /*
+   * =========================================================
+   * RENDER
+   * =========================================================
+   */
 
   return (
     <div className="shell">
-      {/* Mobile overlay */}
+      {/* =====================================================
+          MOBILE OVERLAY
+          ===================================================== */}
+
       <button
         type="button"
         className={`sidebar-overlay ${
@@ -272,21 +359,31 @@ export default function UserLayout({ children }) {
         tabIndex={sidebarOpen ? 0 : -1}
       />
 
-      {/* Sidebar */}
+      {/* =====================================================
+          SIDEBAR
+          ===================================================== */}
+
       <aside
+        id="greenedu-user-sidebar"
         className={`sidebar ${
           sidebarOpen ? "is-open" : ""
         }`}
         aria-label="Foydalanuvchi menyusi"
       >
-        {/* Brand */}
+        {/* ===================================================
+            BRAND
+            =================================================== */}
+
         <Link
           href="/user"
           className="sidebar-brand"
           onClick={closeSidebar}
           aria-label="GreenEdu o'quvchi sahifasi"
         >
-          <span className="brand-mark" aria-hidden="true">
+          <span
+            className="brand-mark"
+            aria-hidden="true"
+          >
             <LeafIcon />
           </span>
 
@@ -301,7 +398,10 @@ export default function UserLayout({ children }) {
           </span>
         </Link>
 
-        {/* Navigation */}
+        {/* ===================================================
+            NAVIGATION
+            =================================================== */}
+
         <nav
           className="nav"
           aria-label="Asosiy menyu"
@@ -350,7 +450,10 @@ export default function UserLayout({ children }) {
             })}
           </div>
 
-          {/* Logout */}
+          {/* =================================================
+              LOGOUT
+              ================================================= */}
+
           <button
             type="button"
             className="nav-link nav-logout"
@@ -362,11 +465,25 @@ export default function UserLayout({ children }) {
                 : "Hisobdan chiqish"
             }
           >
-           
+            <span
+              className="nav-icon"
+              aria-hidden="true"
+            >
+              <LogoutIcon />
+            </span>
+
+            <span className="nav-label">
+              {loggingOut
+                ? "Chiqilmoqda..."
+                : "Hisobdan chiqish"}
+            </span>
           </button>
         </nav>
 
-        {/* User profile */}
+        {/* ===================================================
+            USER PROFILE
+            =================================================== */}
+
         <div className="sidebar-footer">
           <Link
             href="/user/settings"
@@ -374,9 +491,9 @@ export default function UserLayout({ children }) {
             onClick={closeSidebar}
             aria-label="Profil sozlamalarini ochish"
           >
-            {profile.avatarUrl ? (
+            {avatarUrl ? (
               <img
-                src={profile.avatarUrl}
+                src={avatarUrl}
                 alt=""
                 className="avatar sidebar-avatar"
                 width="40"
@@ -395,9 +512,9 @@ export default function UserLayout({ children }) {
 
             <span className="sidebar-user-info">
               <span className="sf-name">
-                {loading
+                {profileLoading
                   ? "Yuklanmoqda..."
-                  : profile.fullName || "Foydalanuvchi"}
+                  : fullName || "Foydalanuvchi"}
               </span>
 
               <span className="sf-role">
@@ -418,8 +535,15 @@ export default function UserLayout({ children }) {
         </div>
       </aside>
 
-      {/* Main */}
+      {/* =====================================================
+          MAIN
+          ===================================================== */}
+
       <div className="shell-main">
+        {/* ===================================================
+            TOPBAR
+            =================================================== */}
+
         <header className="topbar">
           <button
             type="button"
@@ -453,6 +577,10 @@ export default function UserLayout({ children }) {
             </span>
           </div>
         </header>
+
+        {/* ===================================================
+            PAGE CONTENT
+            =================================================== */}
 
         <main
           id="main-content"

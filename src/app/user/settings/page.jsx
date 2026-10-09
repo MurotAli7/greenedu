@@ -1,106 +1,146 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { createClient } from "@/lib/supabase/client";
+
+import { useUserData } from "../UserDataProvider";
+
 import { SkeletonPageHead } from "@/components/Skeleton";
+
 import PasswordInput from "@/components/PasswordInput";
 
 export default function SettingsPage() {
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(
+    () => createClient(),
+    []
+  );
 
-  const [loading, setLoading] = useState(true);
+  /*
+   * User va profile UserDataProvider'dan olinadi.
+   *
+   * Shuning uchun Settings sahifasiga har kirganda:
+   *
+   * auth.getUser()
+   * profiles select
+   *
+   * qaytadan ishlamaydi.
+   */
+  const {
+    user,
+    profile,
+    profileLoading,
+    updateProfile,
+  } = useUserData();
 
-  const [userId, setUserId] = useState(null);
-  const [email, setEmail] = useState("");
+  const userId = user?.id || null;
+
+  const email = user?.email || "";
+
   const [fullName, setFullName] = useState("");
+
   const [avatarUrl, setAvatarUrl] = useState("");
 
-  const [avatarMsg, setAvatarMsg] = useState(null);
-  const [nameMsg, setNameMsg] = useState(null);
-  const [pwMsg, setPwMsg] = useState(null);
+  const [avatarMsg, setAvatarMsg] =
+    useState(null);
 
-  const [avatarBusy, setAvatarBusy] = useState(false);
-  const [nameBusy, setNameBusy] = useState(false);
-  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [nameMsg, setNameMsg] =
+    useState(null);
+
+  const [pwMsg, setPwMsg] =
+    useState(null);
+
+  const [avatarBusy, setAvatarBusy] =
+    useState(false);
+
+  const [nameBusy, setNameBusy] =
+    useState(false);
+
+  const [passwordBusy, setPasswordBusy] =
+    useState(false);
 
   const [pw, setPw] = useState({
     next: "",
     confirm: "",
   });
 
+  /*
+   * Provider'dagi profile kelganda
+   * form ma'lumotlarini yangilaymiz.
+   */
   useEffect(() => {
-    let active = true;
+    if (!profile) return;
 
-    async function loadProfile() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+    setFullName(
+      profile.full_name || ""
+    );
 
-        if (!active) return;
+    setAvatarUrl(
+      profile.avatar_url || ""
+    );
+  }, [profile]);
 
-        if (!user) {
-          setLoading(false);
-          return;
-        }
-
-        setUserId(user.id);
-        setEmail(user.email || "");
-
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, avatar_url")
-          .eq("id", user.id)
-          .single();
-
-        if (!active) return;
-
-        setFullName(profile?.full_name || "");
-        setAvatarUrl(profile?.avatar_url || "");
-      } catch {
-        // Auth/profile xatosi bo'lsa ham loading holatida qolib ketmaydi.
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadProfile();
-
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
-
-  const initials = (fullName || email || "?")
+  /*
+   * Profil bosh harfi
+   */
+  const initials = (
+    fullName ||
+    email ||
+    "?"
+  )
     .trim()
     .charAt(0)
     .toUpperCase();
 
-  const uploadAvatar = async (e) => {
-    const file = e.target.files?.[0];
+  /*
+   * =====================================================
+   * AVATAR UPLOAD
+   * =====================================================
+   */
 
-    // inputni reset qilish — bir xil faylni qayta tanlashga imkon beradi
+  const uploadAvatar = async (e) => {
+    const file =
+      e.target.files?.[0];
+
+    /*
+     * Bir xil faylni yana tanlash mumkin
+     */
     e.target.value = "";
 
-    if (!file || !userId) return;
+    if (!file || !userId) {
+      return;
+    }
 
     setAvatarMsg(null);
 
+    /*
+     * Fayl turi
+     */
     if (!file.type.startsWith("image/")) {
       setAvatarMsg({
         ok: false,
         text: "Faqat JPG, PNG yoki WEBP rasm yuklang.",
       });
+
       return;
     }
 
-    if (file.size > 3 * 1024 * 1024) {
+    /*
+     * 3 MB limit
+     */
+    if (
+      file.size >
+      3 * 1024 * 1024
+    ) {
       setAvatarMsg({
         ok: false,
         text: "Rasm hajmi 3 MB dan katta bo'lmasin.",
       });
+
       return;
     }
 
@@ -108,29 +148,56 @@ export default function SettingsPage() {
 
     try {
       const ext =
-        file.name.split(".").pop()?.toLowerCase() || "jpg";
+        file.name
+          .split(".")
+          .pop()
+          ?.toLowerCase() ||
+        "jpg";
 
-      const path = `${userId}/avatar.${ext}`;
+      const path =
+        `${userId}/avatar.${ext}`;
 
-      const { error: uploadError } = await supabase.storage
+      /*
+       * Supabase Storage
+       */
+      const {
+        error: uploadError,
+      } = await supabase.storage
         .from("avatars")
-        .upload(path, file, {
-          upsert: true,
-          contentType: file.type,
-          cacheControl: "31536000",
-        });
+        .upload(
+          path,
+          file,
+          {
+            upsert: true,
+            contentType:
+              file.type,
+            cacheControl:
+              "31536000",
+          }
+        );
 
       if (uploadError) {
         throw uploadError;
       }
 
-      const { data: publicData } = supabase.storage
+      /*
+       * Public URL
+       */
+      const {
+        data: publicData,
+      } = supabase.storage
         .from("avatars")
         .getPublicUrl(path);
 
-      const url = `${publicData.publicUrl}?v=${Date.now()}`;
+      const url =
+        `${publicData.publicUrl}?v=${Date.now()}`;
 
-      const { error: profileError } = await supabase
+      /*
+       * Profile jadvalini yangilash
+       */
+      const {
+        error: profileError,
+      } = await supabase
         .from("profiles")
         .update({
           avatar_url: url,
@@ -141,44 +208,57 @@ export default function SettingsPage() {
         throw profileError;
       }
 
+      /*
+       * Local state
+       */
       setAvatarUrl(url);
+
+      /*
+       * Provider state
+       */
+      updateProfile({
+        avatar_url: url,
+      });
 
       setAvatarMsg({
         ok: true,
         text: "Profil rasmi yangilandi.",
       });
-
-      window.dispatchEvent(
-        new CustomEvent("greenedu:profile-updated", {
-          detail: {
-            avatarUrl: url,
-          },
-        })
-      );
     } catch (error) {
       setAvatarMsg({
         ok: false,
-        text: error?.message?.includes("Bucket not found")
-          ? "Storage sozlanmagan. Supabase Storage'dagi avatars bucketini tekshiring."
-          : "Rasm yuklashda xatolik yuz berdi.",
+        text:
+          error?.message?.includes(
+            "Bucket not found"
+          )
+            ? "Storage sozlanmagan. Supabase Storage'dagi avatars bucketini tekshiring."
+            : "Rasm yuklashda xatolik yuz berdi.",
       });
     } finally {
       setAvatarBusy(false);
     }
   };
 
+  /*
+   * =====================================================
+   * NAME SAVE
+   * =====================================================
+   */
+
   const saveName = async (e) => {
     e.preventDefault();
 
     setNameMsg(null);
 
-    const cleanName = fullName.trim();
+    const cleanName =
+      fullName.trim();
 
     if (!cleanName) {
       setNameMsg({
         ok: false,
         text: "Ism-familiya bo'sh bo'lishi mumkin emas.",
       });
+
       return;
     }
 
@@ -187,31 +267,34 @@ export default function SettingsPage() {
     setNameBusy(true);
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: cleanName,
-        })
-        .eq("id", userId);
+      const { error } =
+        await supabase
+          .from("profiles")
+          .update({
+            full_name: cleanName,
+          })
+          .eq("id", userId);
 
       if (error) {
         throw error;
       }
 
+      /*
+       * Local state
+       */
       setFullName(cleanName);
+
+      /*
+       * Provider state
+       */
+      updateProfile({
+        full_name: cleanName,
+      });
 
       setNameMsg({
         ok: true,
         text: "Ism-familiya saqlandi.",
       });
-
-      window.dispatchEvent(
-        new CustomEvent("greenedu:profile-updated", {
-          detail: {
-            fullName: cleanName,
-          },
-        })
-      );
     } catch {
       setNameMsg({
         ok: false,
@@ -221,6 +304,12 @@ export default function SettingsPage() {
       setNameBusy(false);
     }
   };
+
+  /*
+   * =====================================================
+   * PASSWORD
+   * =====================================================
+   */
 
   const savePassword = async (e) => {
     e.preventDefault();
@@ -232,6 +321,7 @@ export default function SettingsPage() {
         ok: false,
         text: "Yangi parol kamida 6 ta belgidan iborat bo'lsin.",
       });
+
       return;
     }
 
@@ -240,15 +330,17 @@ export default function SettingsPage() {
         ok: false,
         text: "Parollar bir-biriga mos kelmadi.",
       });
+
       return;
     }
 
     setPasswordBusy(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: pw.next,
-      });
+      const { error } =
+        await supabase.auth.updateUser({
+          password: pw.next,
+        });
 
       if (error) {
         throw error;
@@ -266,75 +358,131 @@ export default function SettingsPage() {
     } catch (error) {
       setPwMsg({
         ok: false,
-        text: error?.message?.includes("different from the old")
-          ? "Yangi parol eskisidan farq qilishi kerak."
-          : "Parolni yangilashda xatolik yuz berdi.",
+        text:
+          error?.message?.includes(
+            "different from the old"
+          )
+            ? "Yangi parol eskisidan farq qilishi kerak."
+            : "Parolni yangilashda xatolik yuz berdi.",
       });
     } finally {
       setPasswordBusy(false);
     }
   };
 
-  if (loading) {
+  /*
+   * =====================================================
+   * LOADING
+   * =====================================================
+   */
+
+  if (
+    profileLoading &&
+    !profile
+  ) {
     return (
       <div className="settings-loading">
+
         <SkeletonPageHead />
 
         <div className="settings-skeleton-grid">
+
           <div className="card settings-skeleton-card">
+
             <div className="sk settings-skeleton-avatar" />
+
             <div className="sk sk-line settings-skeleton-line" />
+
             <div className="sk sk-line settings-skeleton-line short" />
+
             <div className="sk settings-skeleton-input" />
+
             <div className="sk settings-skeleton-input" />
+
           </div>
 
           <div className="card settings-skeleton-card">
+
             <div className="sk sk-line settings-skeleton-line" />
+
             <div className="sk settings-skeleton-input" />
+
             <div className="sk settings-skeleton-input" />
+
             <div className="sk settings-skeleton-button" />
+
           </div>
+
         </div>
+
       </div>
     );
   }
 
   return (
     <main className="settings-page">
-      {/* Page header */}
+
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
       <header className="settings-header">
-        <div className="settings-header-icon" aria-hidden="true">
+
+        <div
+          className="settings-header-icon"
+          aria-hidden="true"
+        >
           ⚙
         </div>
 
         <div>
-          <h1 className="page-title">Sozlamalar</h1>
+
+          <h1 className="page-title">
+            Sozlamalar
+          </h1>
 
           <p className="page-sub">
             Profil ma'lumotlari va hisob xavfsizligini boshqaring.
           </p>
+
         </div>
+
       </header>
 
       <div className="settings-layout">
-        {/* PROFILE */}
+
+        {/* =====================================================
+            PROFILE
+        ===================================================== */}
+
         <section className="card settings-card">
+
           <div className="settings-card-head">
+
             <div>
-              <h2 className="panel-title">Profil</h2>
+
+              <h2 className="panel-title">
+                Profil
+              </h2>
 
               <p className="settings-card-description">
                 Ism-familiyangiz va profil rasmingizni yangilang.
               </p>
+
             </div>
+
           </div>
 
           <form onSubmit={saveName}>
+
             {/* Avatar */}
+
             <div className="settings-profile">
+
               <div className="settings-avatar-wrap">
+
                 {avatarUrl ? (
+
                   <img
                     src={avatarUrl}
                     alt="GreenEdu profil rasmi"
@@ -344,19 +492,25 @@ export default function SettingsPage() {
                     loading="lazy"
                     decoding="async"
                   />
+
                 ) : (
+
                   <div
                     className="settings-avatar settings-avatar-placeholder"
                     aria-label="Profil rasmi mavjud emas"
                   >
                     {initials}
                   </div>
+
                 )}
+
               </div>
 
               <div className="settings-profile-info">
+
                 <strong>
-                  {fullName || "GreenEdu foydalanuvchisi"}
+                  {fullName ||
+                    "GreenEdu foydalanuvchisi"}
                 </strong>
 
                 <span>
@@ -384,7 +538,9 @@ export default function SettingsPage() {
                 <small>
                   JPG, PNG yoki WEBP · 3 MB gacha
                 </small>
+
               </div>
+
             </div>
 
             {avatarMsg && (
@@ -401,7 +557,9 @@ export default function SettingsPage() {
             )}
 
             {/* Email */}
+
             <div className="settings-field">
+
               <label htmlFor="settings-email">
                 Email
               </label>
@@ -418,10 +576,13 @@ export default function SettingsPage() {
               <small>
                 Email manzili hisobingizga bog'langan.
               </small>
+
             </div>
 
             {/* Full name */}
+
             <div className="settings-field">
+
               <label htmlFor="settings-full-name">
                 Ism-familiya
               </label>
@@ -431,11 +592,16 @@ export default function SettingsPage() {
                 className="input settings-input"
                 type="text"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                onChange={(e) =>
+                  setFullName(
+                    e.target.value
+                  )
+                }
                 placeholder="Masalan: Murotali Aliyev"
                 autoComplete="name"
                 maxLength={100}
               />
+
             </div>
 
             {nameMsg && (
@@ -452,6 +618,7 @@ export default function SettingsPage() {
             )}
 
             <div className="settings-actions">
+
               <button
                 type="submit"
                 className="btn btn-primary settings-submit"
@@ -461,15 +628,27 @@ export default function SettingsPage() {
                   ? "Saqlanmoqda..."
                   : "O'zgarishlarni saqlash"}
               </button>
+
             </div>
+
           </form>
+
         </section>
 
-        {/* PASSWORD */}
+        {/* =====================================================
+            PASSWORD
+        ===================================================== */}
+
         <section className="card settings-card settings-security-card">
+
           <div className="settings-card-head">
+
             <div>
-              <div className="settings-section-icon" aria-hidden="true">
+
+              <div
+                className="settings-section-icon"
+                aria-hidden="true"
+              >
                 🔒
               </div>
 
@@ -480,21 +659,37 @@ export default function SettingsPage() {
               <p className="settings-card-description">
                 Hisobingizni himoyalash uchun kuchli paroldan foydalaning.
               </p>
+
             </div>
+
           </div>
 
           <form onSubmit={savePassword}>
+
             <div className="settings-password-note">
-              <strong>Yaxshi parol qanday bo'ladi?</strong>
+
+              <strong>
+                Yaxshi parol qanday bo'ladi?
+              </strong>
 
               <ul>
-                <li>Kamida 6 ta belgidan iborat</li>
-                <li>Taxmin qilish qiyin bo'lgan</li>
-                <li>Boshqa saytlardagi paroldan farqli</li>
+                <li>
+                  Kamida 6 ta belgidan iborat
+                </li>
+
+                <li>
+                  Taxmin qilish qiyin bo'lgan
+                </li>
+
+                <li>
+                  Boshqa saytlardagi paroldan farqli
+                </li>
               </ul>
+
             </div>
 
             <div className="settings-password-fields">
+
               <PasswordInput
                 label="Yangi parol"
                 id="settings-password"
@@ -516,12 +711,14 @@ export default function SettingsPage() {
                 onChange={(e) =>
                   setPw((prev) => ({
                     ...prev,
-                    confirm: e.target.value,
+                    confirm:
+                      e.target.value,
                   }))
                 }
                 autoComplete="new-password"
                 placeholder="Parolni qayta kiriting"
               />
+
             </div>
 
             {pwMsg && (
@@ -538,6 +735,7 @@ export default function SettingsPage() {
             )}
 
             <div className="settings-actions">
+
               <button
                 type="submit"
                 className="btn btn-primary settings-submit"
@@ -547,10 +745,15 @@ export default function SettingsPage() {
                   ? "Yangilanmoqda..."
                   : "Parolni yangilash"}
               </button>
+
             </div>
+
           </form>
+
         </section>
+
       </div>
+
     </main>
   );
 }
