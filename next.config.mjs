@@ -19,18 +19,13 @@ const securityHeaders = [
   {
     key: "Permissions-Policy",
     value:
-      "camera=(self), microphone=(self), fullscreen=*, xr-spatial-tracking=*",
+      "camera=*, microphone=*, fullscreen=*, xr-spatial-tracking=*, accelerometer=*, gyroscope=*, gamepad=*",
   },
 
   {
     key: "Strict-Transport-Security",
     value:
       "max-age=63072000; includeSubDomains; preload",
-  },
-
-  {
-    key: "X-DNS-Prefetch-Control",
-    value: "on",
   },
 
   {
@@ -48,7 +43,7 @@ const securityHeaders = [
 
       "media-src 'self' blob: https:",
 
-      "connect-src 'self' https://*.supabase.co https://unpkg.com",
+      "connect-src 'self' https://*.supabase.co https://unpkg.com https:",
 
       "frame-src 'self' https:",
 
@@ -78,13 +73,11 @@ const nextConfig = {
     return [
       {
         source: "/:path*",
-
         headers: securityHeaders,
       },
 
       {
         source: "/api/:path*",
-
         headers: [
           {
             key: "Cache-Control",
