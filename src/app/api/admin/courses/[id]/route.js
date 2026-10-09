@@ -2,7 +2,7 @@ import { requireAdmin } from "@/lib/supabase/adminGuard";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ok, guardFail, fail, dbFail } from "@/lib/api/respond";
 import { readJson, str, oneOf, bool, httpsUrl, uuid, ValidationError } from "@/lib/api/validate";
-import { CONTENT_TYPES, COURSE_STATUSES } from "@/lib/constants";
+import { COURSE_STATUSES } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +24,9 @@ export async function PATCH(request, { params }) {
       updates.description = str(body.description, { field: "Tavsif", max: 2000 });
     if (body.category !== undefined)
       updates.category = str(body.category, { field: "Kategoriya", max: 100 });
-    if (body.contentType !== undefined)
-      updates.content_type = oneOf(body.contentType, CONTENT_TYPES, { field: "Kontent turi" });
+    if (body.contentType !== undefined) {
+      updates.content_type = oneOf(body.contentType, ["course"], { field: "Kontent turi" });
+    }
     if (body.status !== undefined)
       updates.status = oneOf(body.status, COURSE_STATUSES, { field: "Holat" });
     if (body.embedUrl !== undefined)
@@ -39,7 +40,12 @@ export async function PATCH(request, { params }) {
 
     const service = createServiceClient();
     const { data, error } = await service
-      .from("courses").update(updates).eq("id", id).select().single();
+      .from("courses")
+      .update(updates)
+      .eq("id", id)
+      .eq("content_type", "course")
+      .select()
+      .single();
     if (error) return dbFail(error, "Kursni yangilab bo'lmadi.");
 
     return ok({ course: data });
@@ -59,8 +65,15 @@ export async function DELETE(request, { params }) {
     uuid(id, { field: "Kurs ID" });
 
     const service = createServiceClient();
-    const { error } = await service.from("courses").delete().eq("id", id);
+    const { data, error } = await service
+      .from("courses")
+      .delete()
+      .eq("id", id)
+      .eq("content_type", "course")
+      .select("id")
+      .maybeSingle();
     if (error) return dbFail(error, "Kursni o'chirib bo'lmadi.");
+    if (!data) return fail("Kurs topilmadi.", 404);
 
     return ok({ ok: true });
   } catch (err) {

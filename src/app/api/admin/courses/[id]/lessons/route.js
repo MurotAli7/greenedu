@@ -17,7 +17,7 @@ export async function GET(request, { params }) {
 
     const service = createServiceClient();
     const [courseRes, lessonsRes] = await Promise.all([
-      service.from("courses").select("id, title, description, category, content_type, status").eq("id", id).single(),
+      service.from("courses").select("id, title, description, category, content_type, status").eq("id", id).eq("content_type", "course").single(),
       service.from("lessons").select("id, course_id, title, summary, content, lesson_type, embed_url, model_url, test_url, xp_reward, sort_order").eq("course_id", id).order("sort_order"),
     ]);
 
@@ -44,7 +44,7 @@ export async function POST(request, { params }) {
     const service = createServiceClient();
 
     // Kurs mavjudligini tekshiramiz (begona ID bilan dars yaratilmasin)
-    const { data: course } = await service.from("courses").select("id").eq("id", id).single();
+    const { data: course } = await service.from("courses").select("id").eq("id", id).eq("content_type", "course").single();
     if (!course) return fail("Kurs topilmadi.", 404);
 
     // Tartib raqami berilmasa oxiriga qo'shiladi
