@@ -1,521 +1,872 @@
 "use client";
 
 import {
-  useEffect,
-  useState,
   use,
   useCallback,
+  useEffect,
   useRef,
+  useState,
 } from "react";
 
 import Link from "next/link";
 import Script from "next/script";
 
-import { CheckIcon } from "@/components/Icons";
-
 import {
-  SkeletonPageHead,
-  SkeletonLessons,
-} from "@/components/Skeleton";
-
-import { apiFetch } from "@/lib/api/client";
-
-import {
+  prefetchApi,
   useCachedApi,
   invalidateCache,
 } from "@/lib/api/useCached";
 
-export default function CoursePage({ params }) {
+import { apiFetch } from "@/lib/api/client";
+
+
+// ============================================================
+// PAGE
+// ============================================================
+
+export default function CoursePage({
+  params,
+}) {
   const { id } = use(params);
 
-  /* ============================================================
-     COURSE
-  ============================================================ */
+  // ==========================================================
+  // STATE
+  // ==========================================================
 
-  const [course, setCourse] = useState(null);
-  const [lessons, setLessons] = useState([]);
+  const [course, setCourse] =
+    useState(null);
 
-  const [enrolled, setEnrolled] = useState(false);
+  const [lessons, setLessons] =
+    useState([]);
 
-  const [done, setDone] = useState(new Set());
+  const [enrolled, setEnrolled] =
+    useState(false);
 
-  const [busy, setBusy] = useState(false);
+  const [done, setDone] =
+    useState(new Set());
 
-  const [error, setError] = useState("");
+  const [openLesson, setOpenLesson] =
+    useState(null);
 
-  const [reward, setReward] = useState(null);
+  const [lessonDetails, setLessonDetails] =
+    useState(
+      () => new Map()
+    );
 
-  /* ============================================================
-     INLINE LESSON
+  const [lessonLoading, setLessonLoading] =
+    useState(
+      () => new Set()
+    );
 
-     Endi alohida lesson page yo'q.
-     Lesson shu sahifaning ichida ochiladi.
-  ============================================================ */
+  const [busy, setBusy] =
+    useState(false);
 
-  const [openLesson, setOpenLesson] = useState(null);
+  const [error, setError] =
+    useState("");
 
-  /* ============================================================
-     TEST
-  ============================================================ */
+  const [reward, setReward] =
+    useState(null);
 
-  const [testMessage, setTestMessage] = useState(null);
-
-  /* ============================================================
-     FULLSCREEN
-  ============================================================ */
+  const [testMessage, setTestMessage] =
+    useState(null);
 
   const [fullscreenLesson, setFullscreenLesson] =
     useState(null);
 
-  const fullscreenRef = useRef(null);
+  const fullscreenRef =
+    useRef(null);
 
-  /* ============================================================
-     COURSE DATA
-  ============================================================ */
+
+  // ==========================================================
+  // URL'LAR
+  // ==========================================================
 
   const courseUrl =
-    `/api/user/course?id=${encodeURIComponent(id)}`;
+    `/api/user/course?id=${encodeURIComponent(
+      id
+    )}`;
+
+  const lessonsUrl =
+    `/api/user/course/lessons?id=${encodeURIComponent(
+      id
+    )}`;
+
+
+  // ==========================================================
+  // COURSE
+  // ==========================================================
 
   const {
     data: courseData,
-    loading,
-    error: apiError,
-    mutate,
-  } = useCachedApi(courseUrl);
+    loading: courseLoading,
+    error: courseError,
+    mutate: mutateCourse,
+  } = useCachedApi(
+    courseUrl
+  );
 
-  /* ============================================================
-     COURSE DATA -> STATE
-  ============================================================ */
+
+  // ==========================================================
+  // LESSONS
+  // ==========================================================
+
+  const {
+    data: lessonsData,
+    loading: lessonsLoading,
+    error: lessonsError,
+    mutate: mutateLessons,
+  } = useCachedApi(
+    lessonsUrl
+  );
+
+
+  // ==========================================================
+  // COURSE DATA
+  // ==========================================================
 
   useEffect(() => {
-    if (!courseData) return;
+    if (!courseData) {
+      return;
+    }
 
     setCourse(
-      courseData.course || null
-    );
-
-    setLessons(
-      Array.isArray(courseData.lessons)
-        ? courseData.lessons
-        : []
+      courseData.course ||
+        null
     );
 
     setEnrolled(
-      Boolean(courseData.enrolled)
+      Boolean(
+        courseData.enrolled
+      )
+    );
+  }, [
+    courseData,
+  ]);
+
+
+  // ==========================================================
+  // LESSON DATA
+  // ==========================================================
+
+  useEffect(() => {
+    if (!lessonsData) {
+      return;
+    }
+
+    setLessons(
+      Array.isArray(
+        lessonsData.lessons
+      )
+        ? lessonsData.lessons
+        : []
     );
 
     setDone(
       new Set(
         Array.isArray(
-          courseData.doneLessonIds
+          lessonsData.doneLessonIds
         )
-          ? courseData.doneLessonIds
+          ? lessonsData.doneLessonIds
           : []
       )
     );
-  }, [courseData]);
+  }, [
+    lessonsData,
+  ]);
 
-  /* ============================================================
-     API ERROR
-  ============================================================ */
+
+  // ==========================================================
+  // ERROR
+  // ==========================================================
 
   useEffect(() => {
-    if (apiError) {
-      setError(apiError);
+    if (
+      courseError ||
+      lessonsError
+    ) {
+      setError(
+        courseError ||
+          lessonsError
+      );
     }
-  }, [apiError]);
+  }, [
+    courseError,
+    lessonsError,
+  ]);
 
-  /* ============================================================
-     LESSON OPEN / CLOSE
-  ============================================================ */
 
-  const handleOpenLesson = useCallback(
-    (lesson) => {
-      if (!lesson?.id) return;
+  // ==========================================================
+  // LESSON URL
+  // ==========================================================
 
-      setError("");
-      setReward(null);
-      setTestMessage(null);
+  const lessonUrl =
+    useCallback(
+      (lessonId) =>
+        `/api/user/course/lesson?courseId=${encodeURIComponent(
+          id
+        )}&lessonId=${encodeURIComponent(
+          lessonId
+        )}`,
+      [id]
+    );
 
-      setOpenLesson((previous) => {
+
+  // ==========================================================
+  // SAVE LESSON DETAIL
+  // ==========================================================
+
+  const saveLessonDetail =
+    useCallback(
+      (
+        lessonId,
+        data
+      ) => {
         if (
-          String(previous) ===
-          String(lesson.id)
+          !data?.lesson
+        ) {
+          return;
+        }
+
+        setLessonDetails(
+          (previous) => {
+            const next =
+              new Map(
+                previous
+              );
+
+            next.set(
+              String(
+                lessonId
+              ),
+              data.lesson
+            );
+
+            return next;
+          }
+        );
+      },
+      []
+    );
+
+
+  // ==========================================================
+  // LOAD ONE LESSON
+  // ==========================================================
+
+  const loadLessonDetail =
+    useCallback(
+      async (
+        lesson
+      ) => {
+        if (
+          !lesson?.id ||
+          !enrolled
         ) {
           return null;
         }
 
-        return lesson.id;
-      });
-    },
-    []
-  );
+        const key =
+          String(
+            lesson.id
+          );
 
-  /* ============================================================
-     LESSON COMPLETE
-  ============================================================ */
+        const cached =
+          lessonDetails.get(
+            key
+          );
 
-  const handleComplete = useCallback(
-    async (lesson) => {
-      if (!lesson?.id || busy) return;
-
-      setBusy(true);
-      setError("");
-      setReward(null);
-
-      try {
-        const json = await apiFetch(
-          "/api/user/complete-lesson",
-          {
-            method: "POST",
-            body: {
-              lessonId: lesson.id,
-            },
-          }
-        );
-
-        /* ------------------------------------------------------
-           LOCAL STATE DARHOL YANGILANADI
-        ------------------------------------------------------ */
-
-        setDone((previous) => {
-          const next = new Set(previous);
-
-          next.add(lesson.id);
-
-          return next;
-        });
-
-        /* ------------------------------------------------------
-           COURSE CACHE YANGILANADI
-        ------------------------------------------------------ */
-
-        mutate((previous) => {
-          if (!previous) return previous;
-
-          const currentDone =
-            Array.isArray(
-              previous.doneLessonIds
-            )
-              ? previous.doneLessonIds
-              : [];
-
-          if (
-            currentDone.includes(
-              lesson.id
-            )
-          ) {
-            return previous;
-          }
-
-          return {
-            ...previous,
-
-            doneLessonIds: [
-              ...currentDone,
-              lesson.id,
-            ],
-          };
-        });
-
-        /* ------------------------------------------------------
-           DASHBOARD CACHE ESKIRADI
-        ------------------------------------------------------ */
-
-        invalidateCache(
-          "/api/user/dashboard"
-        );
-
-        /* ------------------------------------------------------
-           REWARD
-        ------------------------------------------------------ */
-
-        if (!json?.already) {
-          setReward({
-            xp:
-              json?.xpEarned || 0,
-
-            leveledUp:
-              Boolean(
-                json?.leveledUp
-              ),
-
-            newLevel:
-              json?.newLevel,
-
-            badges:
-              json?.newBadges || [],
-          });
+        if (cached) {
+          return cached;
         }
-      } catch (err) {
-        setError(
-          err?.message ||
-            "Darsni yakunlashda xatolik yuz berdi."
-        );
-      } finally {
-        setBusy(false);
-      }
-    },
-    [busy, mutate]
-  );
 
-  /* ============================================================
-     ENROLL
-  ============================================================ */
+        setLessonLoading(
+          (previous) => {
+            const next =
+              new Set(
+                previous
+              );
 
-  const handleEnroll = useCallback(
-    async () => {
-      if (busy) return;
+            next.add(key);
 
-      setBusy(true);
-      setError("");
-      setReward(null);
-
-      try {
-        await apiFetch(
-          "/api/user/enroll",
-          {
-            method: "POST",
-            body: {
-              courseId: id,
-            },
+            return next;
           }
         );
 
-        /* ------------------------------------------------------
-           UI DARHOL YANGILANADI
-        ------------------------------------------------------ */
+        try {
+          const data =
+            await prefetchApi(
+              lessonUrl(
+                lesson.id
+              )
+            );
 
-        setEnrolled(true);
+          saveLessonDetail(
+            lesson.id,
+            data
+          );
 
-        /* ------------------------------------------------------
-           CACHE YANGILANADI
-        ------------------------------------------------------ */
+          return (
+            data?.lesson ||
+            null
+          );
 
-        mutate((previous) => {
-          if (!previous) return previous;
+        } catch (err) {
+          setError(
+            err?.message ||
+              "Darsni yuklab bo'lmadi."
+          );
 
-          return {
-            ...previous,
-            enrolled: true,
-          };
-        });
+          return null;
 
-        /* ------------------------------------------------------
-           DASHBOARD CACHE
-        ------------------------------------------------------ */
+        } finally {
+          setLessonLoading(
+            (previous) => {
+              const next =
+                new Set(
+                  previous
+                );
 
-        invalidateCache(
-          "/api/user/dashboard"
-        );
-      } catch (err) {
-        setError(
-          err?.message ||
-            "Kursga yozilishda xatolik yuz berdi."
-        );
-      } finally {
-        setBusy(false);
-      }
-    },
-    [busy, id, mutate]
-  );
+              next.delete(key);
 
-  /* ============================================================
-     TEST RESULT MESSAGE
+              return next;
+            }
+          );
+        }
+      },
+      [
+        enrolled,
+        lessonDetails,
+        lessonUrl,
+        saveLessonDetail,
+      ]
+    );
 
-     Test iframe'dan natija yuborsa,
-     shu yerda qabul qilamiz.
-  ============================================================ */
+
+  // ==========================================================
+  // PRELOAD FIRST TWO LESSONS
+  // ==========================================================
 
   useEffect(() => {
-    const handleMessage = async (event) => {
-      const data = event.data;
+    if (
+      !enrolled ||
+      lessons.length === 0
+    ) {
+      return;
+    }
 
-      if (!data) return;
+    const preload =
+      () => {
+        lessons
+          .slice(0, 2)
+          .forEach(
+            (lesson) => {
+              const key =
+                String(
+                  lesson.id
+                );
 
-      if (
-        data.type !==
-        "TEST_RESULT_MESSAGE"
-      ) {
-        return;
-      }
+              if (
+                lessonDetails.has(
+                  key
+                )
+              ) {
+                return;
+              }
 
-      if (!openLesson) return;
+              prefetchApi(
+                lessonUrl(
+                  lesson.id
+                )
+              )
+                .then(
+                  (data) => {
+                    saveLessonDetail(
+                      lesson.id,
+                      data
+                    );
+                  }
+                )
+                .catch(
+                  () => {}
+                );
+            }
+          );
+      };
 
-      const lesson =
-        lessons.find(
-          (item) =>
-            String(item.id) ===
-            String(openLesson)
+
+    if (
+      typeof window !==
+        "undefined" &&
+      "requestIdleCallback" in
+        window
+    ) {
+      const handle =
+        window.requestIdleCallback(
+          preload,
+          {
+            timeout: 1200,
+          }
         );
 
-      if (!lesson) return;
+      return () => {
+        window.cancelIdleCallback?.(
+          handle
+        );
+      };
+    }
 
-      try {
-        const result =
+
+    const handle =
+      window.setTimeout(
+        preload,
+        250
+      );
+
+    return () =>
+      window.clearTimeout(
+        handle
+      );
+
+  }, [
+    enrolled,
+    lessons,
+    lessonDetails,
+    lessonUrl,
+    saveLessonDetail,
+  ]);
+
+
+  // ==========================================================
+  // OPEN LESSON
+  // ==========================================================
+
+  const handleOpenLesson =
+    useCallback(
+      async (
+        lesson
+      ) => {
+        if (!lesson?.id) {
+          return;
+        }
+
+        setError("");
+        setReward(null);
+        setTestMessage(null);
+
+        const key =
+          String(
+            lesson.id
+          );
+
+
+        // Agar ochiq bo'lsa yopamiz
+        if (
+          String(
+            openLesson
+          ) === key
+        ) {
+          setOpenLesson(null);
+          return;
+        }
+
+
+        // UI darhol ochiladi
+        setOpenLesson(
+          lesson.id
+        );
+
+
+        // Lekin og'ir content
+        // alohida olinadi
+        await loadLessonDetail(
+          lesson
+        );
+
+
+        // ====================================================
+        // KEYINGI 2 TA DARS
+        // ====================================================
+
+        const currentIndex =
+          lessons.findIndex(
+            (item) =>
+              String(
+                item.id
+              ) === key
+          );
+
+        if (
+          currentIndex < 0
+        ) {
+          return;
+        }
+
+
+        lessons
+          .slice(
+            currentIndex + 1,
+            currentIndex + 3
+          )
+          .forEach(
+            (nextLesson) => {
+              const nextKey =
+                String(
+                  nextLesson.id
+                );
+
+              if (
+                lessonDetails.has(
+                  nextKey
+                )
+              ) {
+                return;
+              }
+
+              prefetchApi(
+                lessonUrl(
+                  nextLesson.id
+                )
+              )
+                .then(
+                  (data) => {
+                    saveLessonDetail(
+                      nextLesson.id,
+                      data
+                    );
+                  }
+                )
+                .catch(
+                  () => {}
+                );
+            }
+          );
+
+      },
+      [
+        lessonDetails,
+        lessonUrl,
+        lessons,
+        loadLessonDetail,
+        openLesson,
+        saveLessonDetail,
+      ]
+    );
+
+
+  // ==========================================================
+  // ENROLL
+  // ==========================================================
+
+  const handleEnroll =
+    useCallback(
+      async () => {
+        if (
+          !id ||
+          busy
+        ) {
+          return;
+        }
+
+        setBusy(true);
+        setError("");
+        setReward(null);
+
+        try {
           await apiFetch(
-            "/api/user/test-result",
+            "/api/user/enroll",
             {
               method: "POST",
-
               body: {
-                lessonId:
-                  lesson.id,
-
-                score:
-                  data.score,
-
-                total:
-                  data.total,
+                courseId: id,
               },
             }
           );
 
-        setTestMessage({
-          lessonId:
-            lesson.id,
+          setEnrolled(true);
 
-          text:
-            `Test natijasi saqlandi: ${data.score}/${data.total} (${result?.percent ?? 0}%)`,
-        });
 
-        /* ------------------------------------------------------
-           TESTDAN O'TGAN BO'LSA DARSLARNI YAKUNLASH
-        ------------------------------------------------------ */
+          // Course cache
+          mutateCourse(
+            (previous) => ({
+              ...(previous || {}),
+              enrolled: true,
+            })
+          );
 
+
+          // Lessons qayta yuklansin
+          invalidateCache(
+            lessonsUrl
+          );
+
+          await prefetchApi(
+            lessonsUrl,
+            {
+              force: true,
+            }
+          );
+
+
+        } catch (err) {
+          setError(
+            err?.message ||
+              "Kursga yozilishda xatolik yuz berdi."
+          );
+
+        } finally {
+          setBusy(false);
+        }
+      },
+      [
+        id,
+        busy,
+        lessonsUrl,
+        mutateCourse,
+      ]
+    );
+
+
+  // ==========================================================
+  // COMPLETE LESSON
+  // ==========================================================
+
+  const handleComplete =
+    useCallback(
+      async (
+        lesson
+      ) => {
         if (
-          !done.has(
-            lesson.id
-          )
+          !lesson?.id ||
+          busy
         ) {
-          await handleComplete(
-            lesson
+          return;
+        }
+
+        setBusy(true);
+        setError("");
+        setReward(null);
+
+        try {
+          const result =
+            await apiFetch(
+              "/api/user/complete-lesson",
+              {
+                method: "POST",
+                body: {
+                  lessonId:
+                    lesson.id,
+                },
+              }
+            );
+
+
+          // Local progress
+          setDone(
+            (previous) => {
+              const next =
+                new Set(
+                  previous
+                );
+
+              next.add(
+                lesson.id
+              );
+
+              return next;
+            }
+          );
+
+
+          // Lessons cache
+          mutateLessons(
+            (previous) => {
+              if (
+                !previous
+              ) {
+                return previous;
+              }
+
+              const ids =
+                new Set(
+                  previous.doneLessonIds ||
+                    []
+                );
+
+              ids.add(
+                lesson.id
+              );
+
+              return {
+                ...previous,
+                doneLessonIds:
+                  Array.from(
+                    ids
+                  ),
+              };
+            }
+          );
+
+
+          if (
+            result?.reward
+          ) {
+            setReward(
+              result.reward
+            );
+          }
+
+        } catch (err) {
+          setError(
+            err?.message ||
+              "Darsni tugatishda xatolik yuz berdi."
+          );
+
+        } finally {
+          setBusy(false);
+        }
+      },
+      [
+        busy,
+        mutateLessons,
+      ]
+    );
+
+
+  // ==========================================================
+  // FULLSCREEN
+  // ==========================================================
+
+  const openFullscreen =
+    useCallback(
+      async (
+        lessonId
+      ) => {
+        setFullscreenLesson(
+          lessonId
+        );
+
+        setTimeout(
+          async () => {
+            try {
+              if (
+                fullscreenRef.current
+                  ?.requestFullscreen
+              ) {
+                await fullscreenRef.current
+                  .requestFullscreen();
+              }
+            } catch {}
+          },
+          50
+        );
+      },
+      []
+    );
+
+
+  const closeFullscreen =
+    useCallback(
+      async () => {
+        try {
+          if (
+            document.fullscreenElement
+          ) {
+            await document.exitFullscreen();
+          }
+        } catch {}
+
+        setFullscreenLesson(
+          null
+        );
+      },
+      []
+    );
+
+
+  useEffect(() => {
+    const handleFullscreen =
+      () => {
+        if (
+          !document.fullscreenElement
+        ) {
+          setFullscreenLesson(
+            null
           );
         }
-      } catch (err) {
-        setTestMessage({
-          lessonId:
-            lesson.id,
+      };
 
-          text:
+    document.addEventListener(
+      "fullscreenchange",
+      handleFullscreen
+    );
+
+    return () =>
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreen
+      );
+  }, []);
+
+
+  // ==========================================================
+  // TEST MESSAGE
+  // ==========================================================
+
+  useEffect(() => {
+    const handleMessage =
+      async (event) => {
+        if (
+          event.data?.type !==
+          "TEST_RESULT_MESSAGE"
+        ) {
+          return;
+        }
+
+        try {
+          const result =
+            await apiFetch(
+              "/api/user/test-result",
+              {
+                method: "POST",
+                body: event.data,
+              }
+            );
+
+          setTestMessage(
+            result
+          );
+
+        } catch (err) {
+          setError(
             err?.message ||
-            "Test natijasini saqlashda xatolik yuz berdi.",
-        });
-      }
-    };
+              "Test natijasini saqlab bo'lmadi."
+          );
+        }
+      };
 
     window.addEventListener(
       "message",
       handleMessage
     );
 
-    return () => {
+    return () =>
       window.removeEventListener(
         "message",
         handleMessage
       );
-    };
-  }, [
-    openLesson,
-    lessons,
-    done,
-    handleComplete,
-  ]);
+  }, []);
 
-  /* ============================================================
-     FULLSCREEN
-  ============================================================ */
 
-  const openFullscreen =
-    useCallback((lessonId) => {
-      setFullscreenLesson(
-        lessonId
-      );
-
-      requestAnimationFrame(
-        async () => {
-          const element =
-            fullscreenRef.current;
-
-          if (!element) return;
-
-          try {
-            if (
-              document.fullscreenEnabled &&
-              element.requestFullscreen
-            ) {
-              await element.requestFullscreen();
-            }
-          } catch (err) {
-            console.warn(
-              "Fullscreen ishlamadi:",
-              err
-            );
-          }
-        }
-      );
-    }, []);
-
-  const closeFullscreen =
-    useCallback(async () => {
-      try {
-        if (
-          document.fullscreenElement &&
-          document.exitFullscreen
-        ) {
-          await document.exitFullscreen();
-        }
-      } catch (err) {
-        console.warn(
-          "Fullscreen yopilmadi:",
-          err
-        );
-      }
-
-      setFullscreenLesson(
-        null
-      );
-    }, []);
-
-  /* ============================================================
-     ESC -> FULLSCREEN EXIT
-  ============================================================ */
-
-  useEffect(() => {
-    const handleKeyDown = (
-      event
-    ) => {
-      if (
-        event.key === "Escape" &&
-        fullscreenLesson
-      ) {
-        closeFullscreen();
-      }
-    };
-
-    window.addEventListener(
-      "keydown",
-      handleKeyDown
-    );
-
-    return () => {
-      window.removeEventListener(
-        "keydown",
-        handleKeyDown
-      );
-    };
-  }, [
-    fullscreenLesson,
-    closeFullscreen,
-  ]);
-
-  /* ============================================================
-     PROGRESS
-  ============================================================ */
+  // ==========================================================
+  // PROGRESS
+  // ==========================================================
 
   const doneCount =
-    lessons.filter((lesson) =>
-      done.has(lesson.id)
+    lessons.filter(
+      (lesson) =>
+        done.has(
+          lesson.id
+        )
     ).length;
 
   const pct =
@@ -534,26 +885,28 @@ export default function CoursePage({ params }) {
       0
     );
 
-  /* ============================================================
-     LOADING
-  ============================================================ */
+
+  // ==========================================================
+  // LOADING
+  // ==========================================================
 
   if (
-    loading &&
+    courseLoading &&
     !course
   ) {
     return (
       <main className="course-page">
-        <SkeletonPageHead />
-
-        <SkeletonLessons />
+        <div className="course-loading">
+          Kurs yuklanmoqda...
+        </div>
       </main>
     );
   }
 
-  /* ============================================================
-     NOT FOUND
-  ============================================================ */
+
+  // ==========================================================
+  // NOT FOUND
+  // ==========================================================
 
   if (!course) {
     return (
@@ -586,16 +939,13 @@ export default function CoursePage({ params }) {
     );
   }
 
-  /* ============================================================
-     PAGE
-  ============================================================ */
+
+  // ==========================================================
+  // PAGE
+  // ==========================================================
 
   return (
     <>
-      {/* ========================================================
-          MODEL-VIEWER
-      ======================================================== */}
-
       <Script
         src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"
         type="module"
@@ -603,9 +953,9 @@ export default function CoursePage({ params }) {
 
       <main className="course-page">
 
-        {/* ======================================================
+        {/* ===================================================
             BREADCRUMB
-        ====================================================== */}
+        =================================================== */}
 
         <nav
           className="course-breadcrumb"
@@ -624,9 +974,10 @@ export default function CoursePage({ params }) {
           </span>
         </nav>
 
-        {/* ======================================================
-            COURSE HERO
-        ====================================================== */}
+
+        {/* ===================================================
+            HERO
+        =================================================== */}
 
         <section className="course-hero">
 
@@ -662,15 +1013,18 @@ export default function CoursePage({ params }) {
 
             </div>
 
+
             <h1 className="course-hero-title">
               {course.title}
             </h1>
+
 
             {course.description && (
               <p className="course-hero-description">
                 {course.description}
               </p>
             )}
+
 
             <div className="course-hero-meta">
 
@@ -691,6 +1045,7 @@ export default function CoursePage({ params }) {
             </div>
 
           </div>
+
 
           {!enrolled && (
             <div className="course-hero-action">
@@ -727,9 +1082,10 @@ export default function CoursePage({ params }) {
 
         </section>
 
-        {/* ======================================================
+
+        {/* ===================================================
             ERROR
-        ====================================================== */}
+        =================================================== */}
 
         {error && (
           <div
@@ -744,9 +1100,10 @@ export default function CoursePage({ params }) {
           </div>
         )}
 
-        {/* ======================================================
+
+        {/* ===================================================
             REWARD
-        ====================================================== */}
+        =================================================== */}
 
         {reward && (
           <div
@@ -758,7 +1115,6 @@ export default function CoursePage({ params }) {
             </span>
 
             <div>
-
               <strong>
                 +{reward.xp} XP qo‘shildi!
               </strong>
@@ -782,14 +1138,14 @@ export default function CoursePage({ params }) {
                     .join(", ")}
                 </p>
               )}
-
             </div>
           </div>
         )}
 
-        {/* ======================================================
+
+        {/* ===================================================
             PROGRESS
-        ====================================================== */}
+        =================================================== */}
 
         {enrolled &&
           lessons.length > 0 && (
@@ -801,7 +1157,6 @@ export default function CoursePage({ params }) {
               <div className="course-progress-top">
 
                 <div>
-
                   <span className="section-kicker">
                     KURS JARAYONI
                   </span>
@@ -811,7 +1166,6 @@ export default function CoursePage({ params }) {
                       ? "Kurs yakunlandi!"
                       : "O‘qishni davom ettiring"}
                   </h2>
-
                 </div>
 
                 <strong className="course-progress-percent">
@@ -820,21 +1174,21 @@ export default function CoursePage({ params }) {
 
               </div>
 
+
               <div
                 className="course-progress-bar"
                 role="progressbar"
                 aria-valuenow={pct}
                 aria-valuemin="0"
                 aria-valuemax="100"
-                aria-label={`Kursning ${pct} foizi tugatilgan`}
               >
                 <span
                   style={{
-                    width:
-                      `${pct}%`,
+                    width: `${pct}%`,
                   }}
                 />
               </div>
+
 
               <div className="course-progress-bottom">
 
@@ -860,9 +1214,10 @@ export default function CoursePage({ params }) {
             </section>
           )}
 
-        {/* ======================================================
+
+        {/* ===================================================
             LESSONS
-        ====================================================== */}
+        =================================================== */}
 
         <section className="lessons-section">
 
@@ -887,6 +1242,7 @@ export default function CoursePage({ params }) {
 
             </div>
 
+
             {lessons.length > 0 && (
               <div
                 className="lessons-count"
@@ -899,30 +1255,57 @@ export default function CoursePage({ params }) {
 
           </div>
 
-          {/* ====================================================
-              EMPTY
-          ==================================================== */}
 
-          {lessons.length === 0 ? (
-            <div className="empty-lessons">
+          {/* =================================================
+              LESSON LOADING
+          ================================================= */}
 
-              <div className="empty-lessons-icon">
-                📚
+          {lessonsLoading &&
+            lessons.length === 0 && (
+              <div className="empty-lessons">
+                <div className="empty-lessons-icon">
+                  ⏳
+                </div>
+
+                <h3>
+                  Darslar yuklanmoqda...
+                </h3>
+
+                <p>
+                  Darslar ro‘yxati
+                  tayyorlanmoqda.
+                </p>
               </div>
+            )}
 
-              <h3>
-                Hali darslar
-                qo‘shilmagan
-              </h3>
 
-              <p>
-                Ushbu kursga hozircha
-                darslar joylashtirilmagan.
-              </p>
+          {/* =================================================
+              EMPTY
+          ================================================= */}
 
-            </div>
-          ) : (
+          {!lessonsLoading &&
+            lessons.length === 0 && (
+              <div className="empty-lessons">
 
+                <div className="empty-lessons-icon">
+                  📚
+                </div>
+
+                <h3>
+                  Hali darslar
+                  qo‘shilmagan
+                </h3>
+
+                <p>
+                  Ushbu kursga hozircha
+                  darslar joylashtirilmagan.
+                </p>
+
+              </div>
+            )}
+
+
+          {lessons.length > 0 && (
             <div className="lessons-list">
 
               {lessons.map(
@@ -941,20 +1324,18 @@ export default function CoursePage({ params }) {
                       lesson.id
                     );
 
-                  const hasContent =
-                    Boolean(
-                      lesson.content ||
-                        lesson.embed_url ||
-                        lesson.model_url ||
-                        lesson.test_url
-                    );
+                  const detail =
+                    lessonDetails.get(
+                      String(
+                        lesson.id
+                      )
+                    ) || null;
 
-                  const isFullscreen =
-                    String(
-                      fullscreenLesson
-                    ) ===
-                    String(
-                      lesson.id
+                  const detailLoading =
+                    lessonLoading.has(
+                      String(
+                        lesson.id
+                      )
                     );
 
                   return (
@@ -971,11 +1352,23 @@ export default function CoursePage({ params }) {
                       }`}
                     >
 
-                      {/* ==========================================
-                          LESSON HEADER
-                      ========================================== */}
+                      {/* =================================
+                          HEADER
+                      ================================= */}
 
-                      <div className="lesson-card-main">
+                      <button
+                        type="button"
+                        className="lesson-card-main"
+                        onClick={() =>
+                          enrolled &&
+                          handleOpenLesson(
+                            lesson
+                          )
+                        }
+                        disabled={
+                          !enrolled
+                        }
+                      >
 
                         <div
                           className={`lesson-number ${
@@ -984,529 +1377,322 @@ export default function CoursePage({ params }) {
                               : ""
                           }`}
                         >
-                          {isDone ? (
-                            <CheckIcon
-                              size={17}
-                            />
-                          ) : (
-                            String(
-                              index + 1
-                            ).padStart(
-                              2,
-                              "0"
-                            )
-                          )}
+                          {isDone
+                            ? "✓"
+                            : String(
+                                index + 1
+                              ).padStart(
+                                2,
+                                "0"
+                              )}
                         </div>
 
-                        <div className="lesson-card-info">
 
-                          <div className="lesson-card-title-row">
+                        <div className="lesson-info">
 
-                            <h3>
-                              {lesson.title}
-                            </h3>
-
-                            {isDone && (
-                              <span className="lesson-done-label">
-                                Tugatilgan
-                              </span>
-                            )}
-
-                          </div>
+                          <h3>
+                            {lesson.title}
+                          </h3>
 
                           {lesson.summary && (
-                            <p className="lesson-card-summary">
+                            <p>
                               {lesson.summary}
                             </p>
                           )}
 
-                          <div className="lesson-card-meta">
+                        </div>
 
-                            {lesson.lesson_type !==
-                              "text" && (
-                              <span
-                                className={`lesson-type-pill ${
-                                  lesson.lesson_type ===
-                                  "vr"
-                                    ? "lesson-type-vr"
-                                    : lesson.lesson_type ===
-                                      "ar"
-                                    ? "lesson-type-ar"
-                                    : "lesson-type-media"
-                                }`}
-                              >
-                                {lesson.lesson_type ===
-                                "vr"
-                                  ? "🥽 VR"
-                                  : lesson.lesson_type ===
-                                    "ar"
-                                  ? "🧊 AR / 3D"
-                                  : (
-                                      lesson.lesson_type ||
-                                      "media"
-                                    ).toUpperCase()}
+
+                        <div className="lesson-action">
+
+                          {detailLoading &&
+                            isOpen && (
+                              <span>
+                                ⏳
                               </span>
                             )}
 
-                            <span className="lesson-xp">
-                              +{lesson.xp_reward} XP
-                            </span>
-
-                            {hasContent && (
-                              <span className="lesson-content-indicator">
-                                Interaktiv dars
+                          {!detailLoading &&
+                            isDone && (
+                              <span>
+                                ✓
                               </span>
                             )}
 
-                          </div>
-
-                        </div>
-
-                        {/* =========================================
-                            ACTION
-                        ========================================= */}
-
-                        <div className="lesson-card-action">
-
-                          {enrolled ? (
-
-                            hasContent ? (
-
-                              <button
-                                type="button"
-                                className={
-                                  isDone
-                                    ? "btn btn-ghost btn-sm"
-                                    : "btn btn-primary btn-sm"
-                                }
-                                onClick={() =>
-                                  handleOpenLesson(
-                                    lesson
-                                  )
-                                }
-                              >
-                                {isOpen
-                                  ? "Yopish"
-                                  : isDone
-                                  ? "Qayta ko‘rish"
-                                  : "Boshlash"}
-                              </button>
-
-                            ) : isDone ? (
-
-                              <span className="lesson-finished">
-                                ✓ Tugatilgan
+                          {!detailLoading &&
+                            !isDone && (
+                              <span>
+                                →
                               </span>
-
-                            ) : (
-
-                              <button
-                                type="button"
-                                className="btn btn-primary btn-sm"
-                                onClick={() =>
-                                  handleComplete(
-                                    lesson
-                                  )
-                                }
-                                disabled={busy}
-                              >
-                                {busy
-                                  ? "Saqlanmoqda..."
-                                  : "Tugatdim"}
-                              </button>
-
-                            )
-
-                          ) : (
-
-                            <span className="lesson-finished">
-                              🔒
-                            </span>
-
-                          )}
+                            )}
 
                         </div>
 
-                      </div>
+                      </button>
 
-                      {/* ==================================================
-                          INLINE LESSON CONTENT
 
-                          MUHIM:
-                          Bu yerda boshqa URL'ga o'tilmaydi.
-                          Lesson shu page ichida ochiladi.
-                      ================================================== */}
+                      {/* =================================
+                          INLINE CONTENT
+                      ================================= */}
 
                       {enrolled &&
                         isOpen && (
-                          <div className="lesson-inline-content">
+                          <div
+                            className="lesson-inline-content"
+                            ref={
+                              fullscreenRef
+                            }
+                          >
 
-                            {/* =========================================
-                                TEXT
-                            ========================================= */}
+                            {/* LOADING */}
 
-                            {lesson.content && (
-                              <section className="lesson-inline-block">
+                            {detailLoading &&
+                              !detail && (
+                                <div className="lesson-inline-block">
 
-                                <div className="lesson-inline-heading">
+                                  <div className="lesson-inline-heading">
 
-                                  <span>
-                                    📖
-                                  </span>
+                                    <span>
+                                      ⏳
+                                    </span>
 
-                                  <h4>
+                                    <h4>
+                                      Dars yuklanmoqda...
+                                    </h4>
+
+                                  </div>
+
+                                  <div className="lesson-text">
                                     Dars materiali
-                                  </h4>
+                                    tayyorlanmoqda.
+                                    Biroz kuting...
+                                  </div>
 
                                 </div>
-
-                                <div className="lesson-text">
-                                  {lesson.content}
-                                </div>
-
-                              </section>
-                            )}
-
-                            {/* =========================================
-                                3D / AR MODEL
-                            ========================================= */}
-
-                            {lesson.model_url && (
-                              <section className="lesson-inline-block">
-
-                                <div className="lesson-inline-heading">
-
-                                  <span>
-                                    🧊
-                                  </span>
-
-                                  <h4>
-                                    3D / AR model
-                                  </h4>
-
-                                </div>
-
-                                <div
-                                  ref={
-                                    isFullscreen
-                                      ? fullscreenRef
-                                      : null
-                                  }
-                                  className={
-                                    isFullscreen
-                                      ? "model-viewer-container lesson-viewer-fullscreen"
-                                      : "model-viewer-container"
-                                  }
-                                >
-
-                                  <model-viewer
-                                    src={
-                                      lesson.model_url
-                                    }
-                                    alt={
-                                      lesson.title
-                                    }
-                                    camera-controls
-                                    auto-rotate
-                                    ar
-                                    ar-modes="webxr scene-viewer quick-look"
-                                    shadow-intensity="1"
-                                    exposure="1"
-                                    camera-orbit="0deg 75deg 2.5m"
-                                    style={{
-                                      width:
-                                        "100%",
-                                      height:
-                                        isFullscreen
-                                          ? "100dvh"
-                                          : "500px",
-                                      background:
-                                        "#eef4ee",
-                                      borderRadius:
-                                        "16px",
-                                    }}
-                                  />
-
-                                  <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm lesson-fullscreen-btn"
-                                    onClick={() =>
-                                      isFullscreen
-                                        ? closeFullscreen()
-                                        : openFullscreen(
-                                            lesson.id
-                                          )
-                                    }
-                                  >
-                                    {isFullscreen
-                                      ? "✕ Yopish"
-                                      : "⛶ To‘liq ekran"}
-                                  </button>
-
-                                </div>
-
-                                <p className="viewer-help">
-                                  Modelni sichqoncha
-                                  yoki barmoq bilan
-                                  aylantiring.
-                                  AR tugmasi orqali
-                                  modelni haqiqiy
-                                  muhitda ko‘rishingiz
-                                  mumkin.
-                                </p>
-
-                              </section>
-                            )}
-
-                            {/* =========================================
-                                EMBED / VR / CAMERA / AR
-                            ========================================= */}
-
-                            {lesson.embed_url && (
-                              <section className="lesson-inline-block">
-
-                                <div className="lesson-inline-heading">
-
-                                  <span>
-                                    {lesson.lesson_type ===
-                                    "vr"
-                                      ? "🥽"
-                                      : "🔬"}
-                                  </span>
-
-                                  <h4>
-                                    {lesson.lesson_type ===
-                                    "vr"
-                                      ? "VR / interaktiv muhit"
-                                      : "Interaktiv modul"}
-                                  </h4>
-
-                                </div>
-
-                                <div
-                                  ref={
-                                    isFullscreen
-                                      ? fullscreenRef
-                                      : null
-                                  }
-                                  className={
-                                    isFullscreen
-                                      ? "interactive-viewer lesson-viewer-fullscreen"
-                                      : "interactive-viewer"
-                                  }
-                                  style={{
-                                    position:
-                                      "relative",
-                                    width:
-                                      "100%",
-                                    overflow:
-                                      "hidden",
-                                    borderRadius:
-                                      "16px",
-                                    background:
-                                      "#111",
-                                  }}
-                                >
-
-                                  <iframe
-                                    title={
-                                      lesson.title
-                                    }
-                                    src={
-                                      lesson.embed_url
-                                    }
-
-                                    /*
-                                     * MUHIM:
-                                     * Kamera, mikrofon,
-                                     * WebXR va sensorlar
-                                     * uchun ruxsat.
-                                     */
-
-                                    allow="
-                                      autoplay *;
-                                      fullscreen *;
-                                      camera *;
-                                      microphone *;
-                                      xr-spatial-tracking *;
-                                      accelerometer *;
-                                      gyroscope *;
-                                      gamepad *;
-                                      web-share *
-                                    "
-
-                                    allowFullScreen
-
-                                    webkitallowfullscreen="true"
-
-                                    mozallowfullscreen="true"
-
-                                    loading="eager"
-
-                                    referrerPolicy="strict-origin-when-cross-origin"
-
-                                    style={{
-                                      width:
-                                        "100%",
-                                      height:
-                                        isFullscreen
-                                          ? "100dvh"
-                                          : "650px",
-                                      border:
-                                        "0",
-                                      display:
-                                        "block",
-                                      background:
-                                        "#111",
-                                    }}
-                                  />
-
-                                  <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm lesson-fullscreen-btn"
-                                    onClick={() =>
-                                      isFullscreen
-                                        ? closeFullscreen()
-                                        : openFullscreen(
-                                            lesson.id
-                                          )
-                                    }
-                                  >
-                                    {isFullscreen
-                                      ? "✕ Yopish"
-                                      : "⛶ To‘liq ekran"}
-                                  </button>
-
-                                </div>
-
-                                <p className="viewer-help">
-                                  {lesson.lesson_type ===
-                                  "vr"
-                                    ? "VR uchun WebXR qo‘llab-quvvatlaydigan qurilma va brauzer kerak. Meta Quest kabi VR qurilmalarida Quest Browser orqali ochish tavsiya etiladi."
-                                    : "Kamera yoki AR funksiyasi ishlashi uchun brauzerda kamera ruxsatini bering."
-                                  }
-                                </p>
-
-                              </section>
-                            )}
-
-                            {/* =========================================
-                                TEST
-                            ========================================= */}
-
-                            {lesson.test_url && (
-                              <section className="lesson-inline-block">
-
-                                <div className="lesson-inline-heading">
-
-                                  <span>
-                                    ✏️
-                                  </span>
-
-                                  <h4>
-                                    Mavzu bo‘yicha test
-                                  </h4>
-
-                                </div>
-
-                                <div className="test-viewer">
-
-                                  <iframe
-                                    title={`${lesson.title} — test`}
-                                    src={
-                                      lesson.test_url
-                                    }
-
-                                    allow="
-                                      fullscreen *;
-                                      camera *;
-                                      microphone *
-                                    "
-
-                                    allowFullScreen
-
-                                    loading="eager"
-
-                                    referrerPolicy="strict-origin-when-cross-origin"
-
-                                    style={{
-                                      width:
-                                        "100%",
-                                      minHeight:
-                                        "600px",
-                                      border:
-                                        "0",
-                                      borderRadius:
-                                        "16px",
-                                      display:
-                                        "block",
-                                    }}
-                                  />
-
-                                </div>
-
-                                {testMessage?.lessonId ===
-                                  lesson.id && (
-                                  <p
-                                    className="form-ok lesson-test-message"
-                                    role="status"
-                                  >
-                                    {
-                                      testMessage.text
-                                    }
-                                  </p>
-                                )}
-
-                              </section>
-                            )}
-
-                            {/* =========================================
-                                COMPLETE BUTTON
-                            ========================================= */}
-
-                            <div className="lesson-complete-bar">
-
-                              {!isDone ? (
-
-                                <>
-
-                                  <button
-                                    type="button"
-                                    className="btn btn-primary btn-lg"
-                                    onClick={() =>
-                                      handleComplete(
-                                        lesson
-                                      )
-                                    }
-                                    disabled={busy}
-                                  >
-                                    {busy
-                                      ? "Saqlanmoqda..."
-                                      : "✓ Darsni tugatdim"}
-                                  </button>
-
-                                  {lesson.test_url && (
-                                    <p>
-                                      Testni
-                                      topshirgandan
-                                      so‘ng natija
-                                      avtomatik
-                                      saqlanadi.
-                                    </p>
-                                  )}
-
-                                </>
-
-                              ) : (
-
-                                <div className="lesson-complete-success">
-                                  ✓ Bu dars
-                                  tugatilgan
-                                </div>
-
                               )}
 
-                            </div>
+
+                            {/* CONTENT */}
+
+                            {detail && (
+                              <>
+
+                                {detail.content && (
+                                  <div className="lesson-inline-block">
+
+                                    <div className="lesson-inline-heading">
+
+                                      <span>
+                                        📖
+                                      </span>
+
+                                      <h4>
+                                        Dars materiali
+                                      </h4>
+
+                                    </div>
+
+                                    <div
+                                      className="lesson-text"
+                                      dangerouslySetInnerHTML={{
+                                        __html:
+                                          detail.content,
+                                      }}
+                                    />
+
+                                  </div>
+                                )}
+
+
+                                {/* MODEL */}
+
+                                {detail.model_url && (
+                                  <div className="lesson-inline-block">
+
+                                    <div className="lesson-inline-heading">
+
+                                      <span>
+                                        🧊
+                                      </span>
+
+                                      <h4>
+                                        3D model
+                                      </h4>
+
+                                    </div>
+
+                                    <model-viewer
+                                      src={
+                                        detail.model_url
+                                      }
+                                      camera-controls
+                                      auto-rotate
+                                      ar
+                                      ar-modes="webxr scene-viewer quick-look"
+                                      style={{
+                                        width:
+                                          "100%",
+                                        height:
+                                          "500px",
+                                      }}
+                                    />
+
+                                  </div>
+                                )}
+
+
+                                {/* AR / VR */}
+
+                                {detail.embed_url && (
+                                  <div className="lesson-inline-block">
+
+                                    <div className="lesson-inline-heading">
+
+                                      <span>
+                                        🥽
+                                      </span>
+
+                                      <h4>
+                                        AR / VR
+                                      </h4>
+
+                                    </div>
+
+                                    <div className="lesson-embed-wrapper">
+
+                                      <iframe
+                                        src={
+                                          detail.embed_url
+                                        }
+                                        title={
+                                          detail.title ||
+                                          "AR / VR dars"
+                                        }
+                                        allow="
+                                          autoplay *;
+                                          fullscreen *;
+                                          camera *;
+                                          microphone *;
+                                          xr-spatial-tracking *;
+                                          accelerometer *;
+                                          gyroscope *;
+                                          gamepad *;
+                                          web-share *
+                                        "
+                                        allowFullScreen
+                                        loading="eager"
+                                        style={{
+                                          width:
+                                            "100%",
+                                          minHeight:
+                                            "600px",
+                                          border:
+                                            "none",
+                                        }}
+                                      />
+
+                                    </div>
+
+                                  </div>
+                                )}
+
+
+                                {/* TEST */}
+
+                                {detail.test_url && (
+                                  <div className="lesson-inline-block">
+
+                                    <div className="lesson-inline-heading">
+
+                                      <span>
+                                        📝
+                                      </span>
+
+                                      <h4>
+                                        Test
+                                      </h4>
+
+                                    </div>
+
+                                    <iframe
+                                      src={
+                                        detail.test_url
+                                      }
+                                      title="Test"
+                                      allow="
+                                        fullscreen *;
+                                        camera *;
+                                        microphone *;
+                                      "
+                                      allowFullScreen
+                                      loading="eager"
+                                      style={{
+                                        width:
+                                          "100%",
+                                        minHeight:
+                                          "650px",
+                                        border:
+                                          "none",
+                                      }}
+                                    />
+
+                                  </div>
+                                )}
+
+
+                                {/* FULLSCREEN */}
+
+                                {(detail.embed_url ||
+                                  detail.model_url) && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() =>
+                                      openFullscreen(
+                                        lesson.id
+                                      )
+                                    }
+                                  >
+                                    ⛶ To‘liq ekran
+                                  </button>
+                                )}
+
+
+                                {/* COMPLETE */}
+
+                                {!isDone && (
+                                  <div className="lesson-complete-area">
+
+                                    <button
+                                      type="button"
+                                      className="btn btn-primary"
+                                      onClick={() =>
+                                        handleComplete(
+                                          lesson
+                                        )
+                                      }
+                                      disabled={
+                                        busy
+                                      }
+                                    >
+                                      {busy
+                                        ? "Saqlanmoqda..."
+                                        : "✓ Darsni tugatdim"}
+                                    </button>
+
+                                  </div>
+                                )}
+
+
+                                {isDone && (
+                                  <div className="lesson-complete-success">
+                                    ✓ Bu dars
+                                    tugatilgan
+                                  </div>
+                                )}
+
+                              </>
+                            )}
 
                           </div>
                         )}
@@ -1519,9 +1705,10 @@ export default function CoursePage({ params }) {
             </div>
           )}
 
-          {/* ======================================================
+
+          {/* =================================================
               NOT ENROLLED
-          ====================================================== */}
+          ================================================= */}
 
           {!enrolled &&
             lessons.length > 0 && (
@@ -1548,20 +1735,22 @@ export default function CoursePage({ params }) {
                     mumkin.
                   </p>
 
-                </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={
+                      handleEnroll
+                    }
+                    disabled={
+                      busy
+                    }
+                  >
+                    {busy
+                      ? "Yozilmoqda..."
+                      : "Kursga yozilish"}
+                  </button>
 
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={
-                    handleEnroll
-                  }
-                  disabled={busy}
-                >
-                  {busy
-                    ? "Yozilmoqda..."
-                    : "Kursga yozilish"}
-                </button>
+                </div>
 
               </div>
             )}
