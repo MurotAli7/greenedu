@@ -1,88 +1,112 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api/client";
 import {
-  LeafIcon, DashboardIcon, UsersIcon, BookIcon, ChartIcon,
-  LogoutIcon, MenuIcon, CloseIcon,
+  LeafIcon,
+  BookIcon,
+  LogoutIcon,
+  MenuIcon,
+  CloseIcon,
 } from "@/components/Icons";
 
 const NAV = [
-  { href: "/admin/dashboard", label: "Boshqaruv paneli", icon: DashboardIcon },
-  { href: "/admin/users", label: "Foydalanuvchilar", icon: UsersIcon },
   { href: "/admin/courses", label: "Kurslar", icon: BookIcon },
-  { href: "/admin/statistics", label: "Faollik statistikasi", icon: ChartIcon },
 ];
 
 export default function AdminLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const closeSidebar = () => setOpen(false);
-  const [adminName, setAdminName] = useState("Administrator");
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  useEffect(() => {
-    const supabase = createClient();
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: p } = await supabase
-        .from("profiles").select("full_name").eq("id", user.id).single();
-      if (p?.full_name) setAdminName(p.full_name);
-    })();
-  }, []);
+  const closeSidebar = () => setOpen(false);
 
   const handleLogout = async () => {
-    await apiFetch("/api/admin-auth", { method: "DELETE" }).catch(() => {});
+    if (loggingOut) return;
+    setLoggingOut(true);
+
     try {
-      await createClient().auth.signOut();
-    } catch {}
-    router.push("/login");
-    router.refresh();
+      await apiFetch("/api/admin-auth", { method: "DELETE" });
+    } catch {
+      // Server logout failed; clear the browser session as a fallback.
+      try {
+        await createClient().auth.signOut();
+      } catch (error) {
+        console.error("Admin logout error:", error);
+      }
+    } finally {
+      router.replace("/admin-login");
+      router.refresh();
+      setLoggingOut(false);
+    }
   };
 
   return (
-    <div className="shell">
-      <div
+    <div className="shell admin-shell">
+      <button
+        type="button"
         className={`sidebar-overlay ${open ? "is-open" : ""}`}
         onClick={closeSidebar}
-        aria-hidden="true"
+        aria-label="Menyuni yopish"
+        tabIndex={open ? 0 : -1}
       />
+
       <aside className={`sidebar ${open ? "is-open" : ""}`}>
-        <Link href="/admin/dashboard" className="sidebar-brand">
+        <Link href="/admin/courses" className="sidebar-brand" onClick={closeSidebar}>
           <span className="brand-mark"><LeafIcon /></span>
-          <span>
-            <span className="brand-name">GreenEdu</span><br />
-            <span className="brand-tag">Admin</span>
+          <span className="admin-brand-copy">
+            <span className="brand-name">GreenEdu</span>
+            <span className="brand-tag">KONTENT BOSHQARUVI</span>
           </span>
         </Link>
-        <nav className="nav" aria-label="Asosiy menyu">
+
+        <div className="admin-nav-label">ASOSIY BO‘LIM</div>
+        <nav className="nav nav-main" aria-label="Admin menyusi">
           {NAV.map((item) => {
             const active = pathname.startsWith(item.href);
             const Icon = item.icon;
+
             return (
               <Link
-                key={item.href} href={item.href}
+                key={item.href}
+                href={item.href}
                 className={`nav-link ${active ? "is-active" : ""}`}
                 onClick={closeSidebar}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon />
-                <span>{item.label}</span>
+                <span className="nav-icon"><Icon /></span>
+                <span className="nav-label">{item.label}</span>
               </Link>
             );
           })}
         </nav>
-        <div className="sidebar-footer">
-          <span className="avatar">{adminName.charAt(0).toUpperCase()}</span>
+
+        <div className="admin-sidebar-note">
+          <span className="admin-sidebar-note-mark"><LeafIcon /></span>
           <span>
-            <span className="sf-name">{adminName}</span><br />
-            <span className="sf-role">Boshqaruv</span>
+            <strong>GreenEdu</strong>
+            <small>Ta’lim kontentini boshqaring</small>
           </span>
-          <button type="button" className="sf-logout" onClick={handleLogout} aria-label="Chiqish">
+        </div>
+
+        <div className="sidebar-footer">
+          <span className="avatar">A</span>
+          <span className="sidebar-user-info">
+            <span className="sf-name">Administrator</span>
+            <span className="sf-role">Kontent boshqaruvi</span>
+          </span>
+          <button
+            type="button"
+            className="sf-logout"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            aria-label="Tizimdan chiqish"
+            title="Chiqish"
+          >
             <LogoutIcon />
           </button>
         </div>
@@ -91,15 +115,23 @@ export default function AdminLayout({ children }) {
       <div className="shell-main">
         <header className="topbar">
           <button
-            type="button" className="iconbtn menu-btn"
-            onClick={() => setOpen((v) => !v)}
+            type="button"
+            className="iconbtn menu-btn"
+            onClick={() => setOpen((current) => !current)}
             aria-label={open ? "Menyuni yopish" : "Menyuni ochish"}
           >
             {open ? <CloseIcon /> : <MenuIcon />}
           </button>
-          <span className="topbar-title">Salom, {adminName.split(" ")[0]}!</span>
+          <div className="admin-topbar-copy">
+            <span className="topbar-title">Kurslar boshqaruvi</span>
+            <span className="admin-topbar-subtitle">GreenEdu administrator paneli</span>
+          </div>
+          <span className="admin-topbar-pill"><span /> Admin</span>
         </header>
-        <main id="main-content" className="shell-content" tabIndex={-1}>{children}</main>
+
+        <main id="main-content" className="shell-content" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     </div>
   );
