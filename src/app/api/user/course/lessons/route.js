@@ -1,7 +1,14 @@
 import { requireUser } from "@/lib/supabase/userGuard";
 import { createServiceClient } from "@/lib/supabase/service";
-import { ok, guardFail, fail } from "@/lib/api/respond";
-import { uuid, ValidationError } from "@/lib/api/validate";
+import {
+  ok,
+  guardFail,
+  fail,
+} from "@/lib/api/respond";
+import {
+  uuid,
+  ValidationError,
+} from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -13,94 +20,103 @@ export async function GET(request) {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+
     const courseId = uuid(
-      new URL(request.url).searchParams.get("id"),
-      {
-        field: "Kurs ID",
-      }
+      searchParams.get("courseId"),
+      { field: "Kurs ID" }
+    );
+
+    const lessonId = uuid(
+      searchParams.get("lessonId"),
+      { field: "Dars ID" }
     );
 
     const service = createServiceClient();
 
-    const [lessonsRes, progressRes] =
-      await Promise.all([
-        service
-          .from("lessons")
-          .select(`
-            id,
-            course_id,
-            title,
-            summary,
-            lesson_type,
-            xp_reward,
-            sort_order
-          `)
-          .eq("course_id", courseId)
-          .order("sort_order", {
-            ascending: true,
-          }),
+    // Avval foydalanuvchi kursga yozilganini tekshiramiz.
+    const enrollmentRes = await service
+      .from("enrollments")
+      .select("id")
+      .eq("user_id", guard.user.id)
+      .eq("course_id", courseId)
+      .maybeSingle();
 
-        service
-          .from("lesson_progress")
-          .select("lesson_id")
-          .eq(
-            "user_id",
-            guard.user.id
-          ),
-      ]);
-
-    if (lessonsRes.error) {
+    if (enrollmentRes.error) {
       console.error(
-        "Lessons query error:",
-        lessonsRes.error
+        "LESSON ENROLLMENT ERROR:",
+        enrollmentRes.error
       );
 
       return fail(
-        "Darslarni yuklab bo'lmadi.",
+        "Kursga yozilganlik holatini tekshirib bo‘lmadi.",
         500
       );
     }
 
-    if (progressRes.error) {
+    if (!enrollmentRes.data) {
+      return fail(
+        "Bu darsni ochish uchun avval kursga yoziling.",
+        403
+      );
+    }
+
+    // Faqat so‘ralgan kursdagi bitta darsni olamiz.
+    const lessonRes = await service
+      .from("lessons")
+      .select(
+        [
+          "id",
+          "course_id",
+          "title",
+          "summary",
+          "content",
+          "lesson_type",
+          "embed_url",
+          "model_url",
+          "test_url",
+          "xp_reward",
+          "sort_order",
+        ].join(", ")
+      )
+      .eq("id", lessonId)
+      .eq("course_id", courseId)
+      .maybeSingle();
+
+    if (lessonRes.error) {
       console.error(
-        "Progress query error:",
-        progressRes.error
+        "LESSON DETAIL QUERY ERROR:",
+        lessonRes.error
       );
 
       return fail(
-        "Darslar jarayonini yuklab bo'lmadi.",
+        "Dars ma’lumotlarini yuklab bo‘lmadi.",
         500
       );
     }
 
-    const lessons =
-      lessonsRes.data || [];
-
-    const doneLessonIds =
-      (progressRes.data || []).map(
-        (row) => row.lesson_id
+    if (!lessonRes.data) {
+      return fail(
+        "Dars topilmadi.",
+        404
       );
+    }
 
     return ok({
-      lessons,
-      doneLessonIds,
+      lesson: lessonRes.data,
     });
-
   } catch (err) {
     if (err instanceof ValidationError) {
-      return fail(
-        err.message,
-        400
-      );
+      return fail(err.message, 400);
     }
 
     console.error(
-      "GET /api/user/course/lessons error:",
+      "LESSON DETAIL API ERROR:",
       err
     );
 
     return fail(
-      "Darslarni yuklab bo'lmadi.",
+      "Darsni yuklab bo‘lmadi.",
       500
     );
   }
