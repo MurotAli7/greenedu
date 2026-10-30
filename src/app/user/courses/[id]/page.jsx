@@ -47,10 +47,13 @@ export default function CoursePage({ params }) {
   const [reward, setReward] = useState(null);
   const [testMsg, setTestMsg] = useState(null);
 
-  const [fullscreenLesson, setFullscreenLesson] =
-    useState(null);
+  // FULLSCREEN STATE
+  const [fullscreenLesson, setFullscreenLesson] = useState(null);
+  const [fullscreenType, setFullscreenType] = useState(null);
 
-  const fullscreenRef = useRef(null);
+  // Har bir media elementi uchun alohida ref
+  const modelViewerRef = useRef(null);
+  const embedFrameRef = useRef(null);
 
   // API URL'LAR
   const courseUrl = useMemo(
@@ -69,35 +72,31 @@ export default function CoursePage({ params }) {
   } = useCachedApi(courseUrl);
 
   // API ma'lumotlarini sahifa holatiga joylashtiramiz.
-  const [prevCourseData, setPrevCourseData] = useState(courseData);
-  if (courseData !== prevCourseData) {
-    setPrevCourseData(courseData);
-    if (courseData) {
-      setCourse(courseData.course || null);
-      setLessons(
-        Array.isArray(courseData.lessons)
-          ? courseData.lessons
+  useEffect(() => {
+    if (!courseData) return;
+
+    setCourse(courseData.course || null);
+    setLessons(
+      Array.isArray(courseData.lessons)
+        ? courseData.lessons
+        : []
+    );
+    setEnrolled(Boolean(courseData.enrolled));
+    setDone(
+      new Set(
+        Array.isArray(courseData.doneLessonIds)
+          ? courseData.doneLessonIds
           : []
-      );
-      setEnrolled(Boolean(courseData.enrolled));
-      setDone(
-        new Set(
-          Array.isArray(courseData.doneLessonIds)
-            ? courseData.doneLessonIds
-            : []
-        )
-      );
-    }
-  }
+      )
+    );
+  }, [courseData]);
 
   // API xatosi
-  const [prevCourseError, setPrevCourseError] = useState(courseError);
-  if (courseError !== prevCourseError) {
-    setPrevCourseError(courseError);
+  useEffect(() => {
     if (courseError) {
       setError(courseError);
     }
-  }
+  }, [courseError]);
 
   // Yagona course route orqali ma'lumotlarni qayta olish.
   const reloadCourse = useCallback(async () => {
@@ -123,7 +122,7 @@ export default function CoursePage({ params }) {
     return fresh;
   }, [refreshCourse]);
 
-  // Dars shu API javobida to'liq keladi — bosilganda ikkinchi so'rov yuborilmaydi.
+  // Dars shu API javobida to'liq keladi.
   const handleOpenLesson = useCallback(
     (lesson) => {
       if (!lesson?.id || !enrolled) return;
@@ -222,8 +221,6 @@ export default function CoursePage({ params }) {
           body: { courseId: id },
         });
 
-        // Yozilish muvaffaqiyatli. Endi bitta course API'dan
-        // darslarning to'liq materiallarini qayta olamiz.
         setEnrolled(true);
         mutateCourse((previous) =>
           previous
@@ -232,6 +229,7 @@ export default function CoursePage({ params }) {
         );
 
         const fresh = await reloadCourse();
+
         if (!fresh) {
           setError(
             "Kursga yozildingiz, lekin dars materiallarini yangilash amalga oshmadi. Qayta yuklashni bosing."
@@ -326,34 +324,48 @@ export default function CoursePage({ params }) {
     handleComplete,
   ]);
 
+  // ==========================================
   // FULLSCREEN
+  // Faqat media oynasi fullscreen bo'ladi.
+  // Ma'ruza, test va boshqa materiallar qoladi.
+  // ==========================================
+
   const enterFullscreen = useCallback(
-    async (lessonId) => {
-      setFullscreenLesson(lessonId);
+    async (lessonId, type) => {
+      const element =
+        type === "model"
+          ? modelViewerRef.current
+          : embedFrameRef.current;
 
-      requestAnimationFrame(async () => {
-        const element = fullscreenRef.current;
+      if (!element) return;
 
-        if (!element) return;
+      if (
+        !document.fullscreenEnabled ||
+        typeof element.requestFullscreen !== "function"
+      ) {
+        console.warn(
+          "Ushbu brauzer fullscreen rejimini qo'llab-quvvatlamaydi."
+        );
+        return;
+      }
 
-        try {
-          if (
-            document.fullscreenEnabled &&
-            !document.fullscreenElement &&
-            element.requestFullscreen
-          ) {
-            await element.requestFullscreen({
-              navigationUI: "hide",
-            });
-          }
-        } catch (err) {
-          console.warn("Fullscreen xatosi:", err);
-        }
-      });
+      try {
+        // Muhim: bevosita tugma bosilganda chaqiriladi.
+        await element.requestFullscreen();
+
+        setFullscreenLesson(lessonId);
+        setFullscreenType(type);
+      } catch (err) {
+        setFullscreenLesson(null);
+        setFullscreenType(null);
+
+        console.warn("Fullscreen xatosi:", err);
+      }
     },
     []
   );
 
+  // FULLSCREEN'DAN CHIQISH
   const exitFullscreen = useCallback(async () => {
     try {
       if (document.fullscreenElement) {
@@ -361,15 +373,18 @@ export default function CoursePage({ params }) {
       }
     } catch (err) {
       console.warn("Fullscreen exit:", err);
+    } finally {
+      setFullscreenLesson(null);
+      setFullscreenType(null);
     }
-
-    setFullscreenLesson(null);
   }, []);
 
+  // ESC BOSILGANDA HOLATNI YANGILASH
   useEffect(() => {
     const onChange = () => {
       if (!document.fullscreenElement) {
         setFullscreenLesson(null);
+        setFullscreenType(null);
       }
     };
 
@@ -382,23 +397,6 @@ export default function CoursePage({ params }) {
       );
     };
   }, []);
-
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      if (
-        event.key === "Escape" &&
-        fullscreenLesson
-      ) {
-        exitFullscreen();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [fullscreenLesson, exitFullscreen]);
 
   // PROGRESS
   const doneCount = lessons.filter((lesson) =>
@@ -670,9 +668,11 @@ export default function CoursePage({ params }) {
             <div className="lessons-list">
               {lessons.map((lesson, index) => {
                 const key = String(lesson.id);
+
                 const materialsIncluded = Boolean(
                   courseData?.materialsIncluded
                 );
+
                 const detail = materialsIncluded ? lesson : null;
                 const activeLesson = lesson;
 
@@ -684,8 +684,13 @@ export default function CoursePage({ params }) {
                 const detailLoading =
                   enrolled && !materialsIncluded && courseLoading;
 
-                const isFullscreen =
-                  String(fullscreenLesson) === key;
+                const isModelFullscreen =
+                  String(fullscreenLesson) === key &&
+                  fullscreenType === "model";
+
+                const isEmbedFullscreen =
+                  String(fullscreenLesson) === key &&
+                  fullscreenType === "embed";
 
                 return (
                   <article
@@ -784,10 +789,7 @@ export default function CoursePage({ params }) {
 
                     {/* INLINE LESSON */}
                     {enrolled && isOpen && (
-                      <div
-                        className="lesson-inline-content"
-                        ref={fullscreenRef}
-                      >
+                      <div className="lesson-inline-content">
                         {detailLoading && !detail && (
                           <section
                             className="lesson-inline-block"
@@ -819,7 +821,9 @@ export default function CoursePage({ params }) {
                               }}
                               disabled={courseLoading}
                             >
-                              {courseLoading ? "Yuklanmoqda..." : "Qayta yuklash"}
+                              {courseLoading
+                                ? "Yuklanmoqda..."
+                                : "Qayta yuklash"}
                             </button>
                           </section>
                         )}
@@ -848,38 +852,71 @@ export default function CoursePage({ params }) {
                                   <h4>3D model</h4>
                                 </div>
 
-                                <model-viewer
-                                  src={activeLesson.model_url}
-                                  alt={activeLesson.title}
-                                  camera-controls
-                                  auto-rotate
-                                  ar
-                                  ar-modes="webxr scene-viewer quick-look"
-                                  shadow-intensity="1"
-                                  exposure="1"
+                                {/* Faqat shu media stage fullscreen bo'ladi */}
+                                <div
+                                  ref={modelViewerRef}
                                   style={{
+                                    position: "relative",
                                     width: "100%",
-                                    height: isFullscreen
+                                    height: isModelFullscreen
                                       ? "100dvh"
-                                      : 480,
-                                    background: "#eef4ee",
-                                    borderRadius: 16,
+                                      : "auto",
+                                    overflow: "hidden",
+                                    background: isModelFullscreen
+                                      ? "#101810"
+                                      : "transparent",
                                   }}
-                                />
-
-                                <button
-                                  type="button"
-                                  className="btn btn-primary btn-sm"
-                                  onClick={() =>
-                                    isFullscreen
-                                      ? exitFullscreen()
-                                      : enterFullscreen(lesson.id)
-                                  }
                                 >
-                                  {isFullscreen
-                                    ? "✕ Yopish"
-                                    : "⛶ To'liq ekran"}
-                                </button>
+                                  <model-viewer
+                                    src={activeLesson.model_url}
+                                    alt={activeLesson.title}
+                                    camera-controls
+                                    auto-rotate
+                                    ar
+                                    ar-modes="webxr scene-viewer quick-look"
+                                    shadow-intensity="1"
+                                    exposure="1"
+                                    style={{
+                                      width: "100%",
+                                      height: isModelFullscreen
+                                        ? "100dvh"
+                                        : 480,
+                                      background: isModelFullscreen
+                                        ? "#101810"
+                                        : "#eef4ee",
+                                      borderRadius: isModelFullscreen
+                                        ? 0
+                                        : 16,
+                                    }}
+                                  />
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() =>
+                                      isModelFullscreen
+                                        ? exitFullscreen()
+                                        : enterFullscreen(
+                                            lesson.id,
+                                            "model"
+                                          )
+                                    }
+                                    style={
+                                      isModelFullscreen
+                                        ? {
+                                            position: "absolute",
+                                            top: 16,
+                                            right: 16,
+                                            zIndex: 20,
+                                          }
+                                        : undefined
+                                    }
+                                  >
+                                    {isModelFullscreen
+                                      ? "✕ Yopish"
+                                      : "⛶ To'liq ekran"}
+                                  </button>
+                                </div>
                               </section>
                             )}
 
@@ -900,43 +937,77 @@ export default function CoursePage({ params }) {
                                   </h4>
                                 </div>
 
-                                <iframe
-                                  title={activeLesson.title}
-                                  src={activeLesson.embed_url}
-                                  allow="
-                                    autoplay *;
-                                    fullscreen *;
-                                    xr-spatial-tracking *;
-                                    camera *;
-                                    microphone *;
-                                    accelerometer *;
-                                    gyroscope *;
-                                    gamepad *;
-                                    web-share *
-                                  "
-                                  allowFullScreen
-                                  loading="lazy"
-                                  referrerPolicy="strict-origin-when-cross-origin"
+                                {/* Faqat iframe media stage fullscreen bo'ladi */}
+                                <div
+                                  ref={embedFrameRef}
                                   style={{
+                                    position: "relative",
                                     width: "100%",
-                                    minHeight: 600,
-                                    border: "none",
+                                    height: isEmbedFullscreen
+                                      ? "100dvh"
+                                      : "auto",
+                                    overflow: "hidden",
+                                    background: "#000",
                                   }}
-                                />
-
-                                <button
-                                  type="button"
-                                  className="btn btn-primary btn-sm"
-                                  onClick={() =>
-                                    isFullscreen
-                                      ? exitFullscreen()
-                                      : enterFullscreen(lesson.id)
-                                  }
                                 >
-                                  {isFullscreen
-                                    ? "✕ Yopish"
-                                    : "⛶ To'liq ekran"}
-                                </button>
+                                  <iframe
+                                    title={activeLesson.title}
+                                    src={activeLesson.embed_url}
+                                    allow="
+                                      autoplay *;
+                                      fullscreen *;
+                                      xr-spatial-tracking *;
+                                      camera *;
+                                      microphone *;
+                                      accelerometer *;
+                                      gyroscope *;
+                                      gamepad *;
+                                      web-share *
+                                    "
+                                    allowFullScreen
+                                    loading="lazy"
+                                    referrerPolicy="strict-origin-when-cross-origin"
+                                    style={{
+                                      display: "block",
+                                      width: "100%",
+                                      height: isEmbedFullscreen
+                                        ? "100dvh"
+                                        : 600,
+                                      minHeight: isEmbedFullscreen
+                                        ? "100dvh"
+                                        : 600,
+                                      border: "none",
+                                      background: "#000",
+                                    }}
+                                  />
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() =>
+                                      isEmbedFullscreen
+                                        ? exitFullscreen()
+                                        : enterFullscreen(
+                                            lesson.id,
+                                            "embed"
+                                          )
+                                    }
+                                    style={
+                                      isEmbedFullscreen
+                                        ? {
+                                            position: "absolute",
+                                            top: 16,
+                                            right: 16,
+                                            zIndex: 20,
+                                          }
+                                        : undefined
+                                    }
+                                  >
+                                    {isEmbedFullscreen
+                                      ? "✕ Yopish"
+                                      : "⛶ To'liq ekran"}
+                                  </button>
+                                </div>
                               </section>
                             )}
 
