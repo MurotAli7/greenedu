@@ -329,7 +329,6 @@ export default function CourseManager() {
                 </div>
 
                 <div className="admin-course-card-meta">
-                  <span>{createdDate ? `Yaratilgan: ${createdDate}` : "Yangi kurs"}</span>
                   {course.recommended_for_new_users && <span className="admin-recommended-tag">Tavsiya etilgan</span>}
                 </div>
 
