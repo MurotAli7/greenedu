@@ -296,43 +296,22 @@ export function useCachedApi(
   // ==========================================================
 
   useEffect(() => {
-    if (
-      !url ||
-      !enabled
-    ) {
-      setLoading(false);
+    if (!url || !enabled) {
       return;
     }
 
-    const entry =
-      cache.get(url);
+    const entry = cache.get(url);
 
     if (entry) {
-      setData(
-        entry.data
-      );
-
-      setLoading(false);
-      setError("");
-
-      // TTL o'tgan bo'lsa,
-      // background refresh.
-      if (
-        Date.now() -
-          entry.time >
-          ttl
-      ) {
+      if (Date.now() - entry.time > ttl) {
         refresh(true);
       }
-
       return;
     }
 
     setData(null);
     setLoading(true);
-
     refresh(false);
-
   }, [
     url,
     ttl,

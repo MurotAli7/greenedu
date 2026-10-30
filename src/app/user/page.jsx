@@ -33,11 +33,11 @@ export default function UserHomePage() {
   // muammosining yechimi shu.
   const { data, loading, error } = useCachedApi("/api/user/dashboard");
 
-  // Motivatsion maslahat — har kirganda almashadi
-  const [tip, setTip] = useState("");
+  // Motivatsion maslahat — faqat birinchi yuklanganda tanlanadi
+  const [tip, setTip] = useState(GREEN_TIPS[0]);
   useEffect(() => {
-    if (data) setTip(GREEN_TIPS[Math.floor(Math.random() * GREEN_TIPS.length)]);
-  }, [data]);
+    setTip(GREEN_TIPS[Math.floor(Math.random() * GREEN_TIPS.length)]);
+  }, []);
 
   const stats = data?.stats;
   const enrolled = data?.enrolled || [];
@@ -113,7 +113,7 @@ export default function UserHomePage() {
 
       {/* Kunlik yashil qadam */}
       <div
-        className="card card-pad viewfinder viewfinder-sm"
+        className="card card-pad viewfinder viewfinder-sm viewfinder-tip"
         style={{ marginBottom: 26, display: "flex", gap: 14, alignItems: "flex-start" }}
       >
         <span className="vf-b" aria-hidden="true" />

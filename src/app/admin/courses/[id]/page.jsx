@@ -41,11 +41,14 @@ export default function AdminCourseLessonsPage({ params }) {
     `/api/admin/courses/${id}/lessons`
   );
 
-  useEffect(() => {
-    if (!pageData) return;
-    setCourse(pageData.course);
-    setLessons(pageData.lessons || []);
-  }, [pageData]);
+  const [prevPageData, setPrevPageData] = useState(pageData);
+  if (pageData !== prevPageData) {
+    setPrevPageData(pageData);
+    if (pageData) {
+      setCourse(pageData.course);
+      setLessons(pageData.lessons || []);
+    }
+  }
 
   const setF = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
 

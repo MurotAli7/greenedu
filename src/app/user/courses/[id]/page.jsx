@@ -69,31 +69,35 @@ export default function CoursePage({ params }) {
   } = useCachedApi(courseUrl);
 
   // API ma'lumotlarini sahifa holatiga joylashtiramiz.
-  useEffect(() => {
-    if (!courseData) return;
-
-    setCourse(courseData.course || null);
-    setLessons(
-      Array.isArray(courseData.lessons)
-        ? courseData.lessons
-        : []
-    );
-    setEnrolled(Boolean(courseData.enrolled));
-    setDone(
-      new Set(
-        Array.isArray(courseData.doneLessonIds)
-          ? courseData.doneLessonIds
+  const [prevCourseData, setPrevCourseData] = useState(courseData);
+  if (courseData !== prevCourseData) {
+    setPrevCourseData(courseData);
+    if (courseData) {
+      setCourse(courseData.course || null);
+      setLessons(
+        Array.isArray(courseData.lessons)
+          ? courseData.lessons
           : []
-      )
-    );
-  }, [courseData]);
+      );
+      setEnrolled(Boolean(courseData.enrolled));
+      setDone(
+        new Set(
+          Array.isArray(courseData.doneLessonIds)
+            ? courseData.doneLessonIds
+            : []
+        )
+      );
+    }
+  }
 
   // API xatosi
-  useEffect(() => {
+  const [prevCourseError, setPrevCourseError] = useState(courseError);
+  if (courseError !== prevCourseError) {
+    setPrevCourseError(courseError);
     if (courseError) {
       setError(courseError);
     }
-  }, [courseError]);
+  }
 
   // Yagona course route orqali ma'lumotlarni qayta olish.
   const reloadCourse = useCallback(async () => {

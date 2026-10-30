@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api/client";
 import { UserDataProvider, useUserData } from "./UserDataProvider";
 
 import {
@@ -175,6 +176,9 @@ function UserLayoutContent({ children }) {
     setLoggingOut(true);
 
     try {
+      try {
+        await apiFetch("/api/auth/logout", { method: "POST" });
+      } catch {}
       await supabase.auth.signOut();
 
       router.replace("/login");

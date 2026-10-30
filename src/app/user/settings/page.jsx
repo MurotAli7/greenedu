@@ -72,17 +72,14 @@ export default function SettingsPage() {
    * Provider'dagi profile kelganda
    * form ma'lumotlarini yangilaymiz.
    */
-  useEffect(() => {
-    if (!profile) return;
-
-    setFullName(
-      profile.full_name || ""
-    );
-
-    setAvatarUrl(
-      profile.avatar_url || ""
-    );
-  }, [profile]);
+  const [prevProfile, setPrevProfile] = useState(profile);
+  if (profile !== prevProfile) {
+    setPrevProfile(profile);
+    if (profile) {
+      setFullName(profile.full_name || "");
+      setAvatarUrl(profile.avatar_url || "");
+    }
+  }
 
   /*
    * Profil bosh harfi

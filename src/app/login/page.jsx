@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api/client";
 import PasswordInput from "@/components/PasswordInput";
 import { safePath } from "@/lib/api/validate";
 
@@ -55,7 +55,8 @@ function LoginForm() {
     e.preventDefault();
     setError("");
 
-    if (!form.email || !form.password) {
+    const email = form.email.trim();
+    if (!email || !form.password) {
       setError("Email va parolni kiriting.");
       return;
     }
@@ -63,44 +64,16 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
+      const res = await apiFetch("/api/auth/login", {
+        method: "POST",
+        body: { email, password: form.password },
+      });
 
-      const { data, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email: form.email,
-          password: form.password,
-        });
-
-      if (signInError) {
-        const msg = signInError.message.toLowerCase();
-
-        if (msg.includes("invalid login credentials")) {
-          setError("Email yoki parol noto'g'ri.");
-        } else if (msg.includes("email not confirmed")) {
-          setError(
-            "Avval emailingizga yuborilgan havola orqali hisobni tasdiqlang."
-          );
-        } else {
-          setError(signInError.message);
-        }
-
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", data.user.id)
-        .single();
-
-      router.push(
-        from || (profile?.role === "admin" ? "/admin" : "/user")
-      );
-
+      router.push(from || res.redirectTo || "/user");
       router.refresh();
-    } catch {
+    } catch (err) {
       setError(
-        "Kirishda xatolik yuz berdi. Qaytadan urinib ko'ring."
+        err?.message || "Kirishda xatolik yuz berdi. Qaytadan urinib ko'ring."
       );
     } finally {
       setLoading(false);

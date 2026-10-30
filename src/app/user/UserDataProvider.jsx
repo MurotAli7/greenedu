@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/useCached";
 
 const UserDataContext = createContext(null);
+const EMPTY_LIST = Object.freeze([]);
 
 export function UserDataProvider({ children }) {
   const supabase = useMemo(() => createClient(), []);
@@ -248,13 +249,13 @@ export function UserDataProvider({ children }) {
     statsData?.stats || null;
 
   const enrolledCourses =
-    coursesData?.courses || [];
+    coursesData?.courses || EMPTY_LIST;
 
   const libraryCourses =
-    libraryData?.courses || [];
+    libraryData?.courses || EMPTY_LIST;
 
   const badges =
-    badgesData?.badges || [];
+    badgesData?.badges || EMPTY_LIST;
 
   /* =========================================================
      PROFILE'DAN FALLBACK

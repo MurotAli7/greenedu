@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api/client";
 
 /* =========================================================
    ICONS
@@ -205,111 +205,18 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-
-      /* -----------------------------------------------------
-         SUPABASE AUTH REGISTER
-      ----------------------------------------------------- */
-
-      const {
-        data,
-        error: signUpError,
-      } = await supabase.auth.signUp({
-        email,
-        password,
-
-        options: {
-          data: {
-            full_name: fullName,
-          },
-
-          emailRedirectTo:
-            `${window.location.origin}/login`,
-        },
+      const res = await apiFetch("/api/auth/register", {
+        method: "POST",
+        body: { fullName, email, password },
       });
 
-      /* -----------------------------------------------------
-         SUPABASE ERROR
-      ----------------------------------------------------- */
-
-      if (signUpError) {
-        console.error(
-          "Supabase register error:",
-          signUpError
-        );
-
-        const message =
-          signUpError.message?.toLowerCase() || "";
-
-        if (
-          message.includes("already registered") ||
-          message.includes("already exists") ||
-          message.includes("user already registered")
-        ) {
-          setError(
-            "Bu email manzili bilan hisob allaqachon mavjud."
-          );
-        } else if (
-          message.includes("password")
-        ) {
-          setError(
-            "Parol talablarga javob bermaydi."
-          );
-        } else if (
-          message.includes("email")
-        ) {
-          setError(
-            "Email manzilini tekshiring."
-          );
-        } else {
-          setError(
-            signUpError.message ||
-              "Ro‘yxatdan o‘tishda xatolik yuz berdi."
-          );
-        }
-
-        return;
-      }
-
-      console.log(
-        "GreenEdu register success:",
-        data
-      );
-
-      /* -----------------------------------------------------
-         EMAIL CONFIRMATION YOQILGAN
-      ----------------------------------------------------- */
-
-      if (data?.user && !data?.session) {
-        setSuccess(
-          "Hisob muvaffaqiyatli yaratildi! Email manzilingizni tasdiqlash uchun emailingizni tekshiring."
-        );
-
-        setForm({
-          fullName: "",
-          email: "",
-          password: "",
-          confirm: "",
-        });
-
-        return;
-      }
-
-      /* -----------------------------------------------------
-         EMAIL CONFIRMATION O‘CHIRILGAN
-      ------------------------------------------------------- */
-
-      if (data?.session) {
+      if (res.hasSession) {
         window.location.href = "/user";
         return;
       }
 
-      /* -----------------------------------------------------
-         FALLBACK
-      ------------------------------------------------------- */
-
       setSuccess(
-        "Hisob muvaffaqiyatli yaratildi. Endi tizimga kirishingiz mumkin."
+        res.message || "Hisob muvaffaqiyatli yaratildi. Endi tizimga kirishingiz mumkin."
       );
 
       setForm({
@@ -319,14 +226,8 @@ export default function RegisterPage() {
         confirm: "",
       });
     } catch (err) {
-      console.error(
-        "Register unexpected error:",
-        err
-      );
-
       setError(
-        err?.message ||
-          "Ro‘yxatdan o‘tish vaqtida kutilmagan xatolik yuz berdi."
+        err?.message || "Ro‘yxatdan o‘tishda kutilmagan xatolik yuz berdi. Qaytadan urinib ko‘ring."
       );
     } finally {
       setLoading(false);
