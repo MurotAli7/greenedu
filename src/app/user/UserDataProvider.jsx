@@ -620,7 +620,7 @@ export function UserDataProvider({ children }) {
       }
     },
     [
-      user?.id,
+      user,
       notificationsLoaded,
       notificationsLoading,
       supabase,
@@ -741,7 +741,7 @@ export function UserDataProvider({ children }) {
     [
       notifications,
       supabase,
-      user?.id,
+      user,
     ]
   );
 
@@ -809,7 +809,7 @@ export function UserDataProvider({ children }) {
     [
       notifications,
       supabase,
-      user?.id,
+      user,
       loadNotifications,
     ]
   );

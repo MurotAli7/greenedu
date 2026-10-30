@@ -13,7 +13,9 @@ export default function Modal({ title, onClose, children, footer }) {
   const titleId = useId();
 
   // Har renderda eng yangi onClose funksiyasini saqlab turamiz.
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     previouslyFocusedRef.current = document.activeElement;
